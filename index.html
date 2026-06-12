@@ -9,13 +9,14 @@
 <body>
   <header>
     <h1>⚽ 2026 美加墨世界杯比分预测</h1>
-    <p class="subtitle">Elo 实力评分 + 泊松分布模型 · 48 强真实分组 · 仅供娱乐参考</p>
+    <p class="subtitle">3 数据源 × 3 模型 + 加权集成 · 48 强真实分组 · 仅供娱乐参考</p>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-tab="match">对阵预测</button>
     <button class="tab" data-tab="group">小组赛模拟</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="data">数据源</button>
     <button class="tab" data-tab="about">关于模型</button>
   </nav>
 
@@ -39,6 +40,12 @@
         <label class="opt"><input type="checkbox" id="homeAdv" checked> 东道主主场加成（美/加/墨）</label>
         <button id="predictBtn" class="primary">预测比分</button>
       </div>
+      <div class="weights">
+        <span class="section-title" style="margin:0">集成权重：</span>
+        <label>Elo <input type="range" id="wElo" min="0" max="10" value="5"><span id="wEloVal">5</span></label>
+        <label>FIFA <input type="range" id="wFifa" min="0" max="10" value="5"><span id="wFifaVal">5</span></label>
+        <label>赔率 <input type="range" id="wMarket" min="0" max="10" value="5"><span id="wMarketVal">5</span></label>
+      </div>
     </div>
     <div id="matchResult"></div>
   </section>
@@ -49,6 +56,13 @@
       <div class="options">
         <label>选择小组：</label>
         <select id="groupSelect"></select>
+        <label>模型：</label>
+        <select id="groupModel">
+          <option value="ensemble" selected>集成（推荐）</option>
+          <option value="elo">仅 Elo</option>
+          <option value="fifa">仅 FIFA 排名</option>
+          <option value="market">仅市场赔率</option>
+        </select>
         <button id="groupBtn" class="primary">模拟该小组（5000 次）</button>
       </div>
     </div>
@@ -65,6 +79,13 @@
           <option value="5000" selected>5,000（推荐）</option>
           <option value="10000">10,000（慢但更准）</option>
         </select>
+        <label>模型：</label>
+        <select id="mcModel">
+          <option value="ensemble" selected>集成（推荐）</option>
+          <option value="elo">仅 Elo</option>
+          <option value="fifa">仅 FIFA 排名</option>
+          <option value="market">仅市场赔率</option>
+        </select>
         <button id="mcBtn" class="primary">模拟整届世界杯</button>
         <span id="mcStatus" class="status"></span>
       </div>
@@ -72,17 +93,35 @@
     <div id="mcResult"></div>
   </section>
 
+  <!-- 数据源 -->
+  <section id="tab-data" class="panel">
+    <div class="card">
+      <div class="section-title">48 强三大数据源一览（点击表头排序所用的综合实力即三源等权集成）</div>
+      <div id="dataTable"></div>
+    </div>
+    <div class="card about">
+      <h2>数据来源与可信度</h2>
+      <ul>
+        <li><strong>Elo 实力分</strong>：eloratings.net 风格的实力评分，按 2026 年 6 月开赛前水平估算。</li>
+        <li><strong>FIFA 官方积分</strong>：2026 年 4–6 月 FIFA/Coca-Cola 排名。头部球队（法国、西班牙 1876.4、阿根廷、英格兰、葡萄牙的位次）为媒体报道证实，其余按最近一期公开排名估算。</li>
+        <li><strong>夺冠赔率</strong>：2026 年 6 月开赛前 BetMGM / FanDuel 等机构行情。西班牙 +450、法国 +500、英格兰 +700、巴西 +800、葡萄牙/阿根廷 +900、德国 +1400、荷兰 +2000、挪威 +3500、哥伦比亚 +4000、乌拉圭 +6500 为报道证实，其余为按市场惯例估算。</li>
+        <li>所有数值都在 <code>js/data.js</code> 中，可手动修改，刷新页面即生效。</li>
+      </ul>
+    </div>
+  </section>
+
   <!-- 关于 -->
   <section id="tab-about" class="panel">
     <div class="card about">
-      <h2>模型说明</h2>
+      <h2>三个模型 + 集成是怎么算的</h2>
       <ul>
-        <li><strong>实力评分：</strong>每支球队有一个 Elo 评分（参考 eloratings.net 与 FIFA 排名估算），东道主美国、加拿大、墨西哥默认 +75 主场加成。</li>
-        <li><strong>预期进球：</strong>由两队 Elo 差换算双方预期进球数（实力相当时各约 1.38 球）。</li>
-        <li><strong>比分概率：</strong>双方进球数服从泊松分布，独立相乘得到每个具体比分（0:0 ~ 8:8）的概率。</li>
-        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时赛，再平则点球大战（按实力差微调的接近五五开）。</li>
-        <li><strong>全程模拟：</strong>蒙特卡洛方法把 104 场比赛全部随机模拟成千上万次，统计每队小组出线、进 16 强 / 8 强 / 4 强 / 决赛、夺冠的频率。32 强对阵采用官方公布的对阵模板（M73–M88），小组第三的归属按官方限定槽位匹配。</li>
-        <li><strong>数据：</strong>小组分组为 2025 年 12 月 5 日抽签 + 2026 年 3 月附加赛后的最终结果（波黑、瑞典、土耳其、捷克及刚果（金）、伊拉克通过附加赛晋级）。</li>
+        <li><strong>① Elo 模型：</strong>直接用两队 Elo 分差衡量实力差距，东道主美/加/墨 +75 主场加成。</li>
+        <li><strong>② FIFA 排名模型：</strong>用 FIFA 官方积分差（乘换算系数对齐到 Elo 尺度），同样含主场加成。FIFA 积分反映近年正式比赛战绩，与 Elo 的侧重不同。</li>
+        <li><strong>③ 市场赔率模型：</strong>把博彩公司夺冠赔率换算成隐含概率，再按对数尺度反推每队实力。赔率凝聚了市场对阵容、伤病、状态的全部判断，因此该模型不再叠加主场加成（市场已计价）。</li>
+        <li><strong>④ 集成模型：</strong>对三个模型的实力分差做加权平均（权重可在对阵预测页调节，默认等权）。多源集成可以抵消单一数据源的偏差——这是提升预测稳健性最有效的手段。</li>
+        <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
+        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
+        <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
       </ul>
       <p class="disclaimer">⚠️ 预测结果由统计模型生成，仅供娱乐与参考，请勿用于赌博。足球是圆的！</p>
     </div>

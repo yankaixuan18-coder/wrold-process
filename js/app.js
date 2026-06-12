@@ -13,6 +13,21 @@ document.querySelectorAll('.tab').forEach((btn) => {
   });
 });
 
+// ---------- 集成权重 ----------
+function readWeights() {
+  return {
+    elo: parseInt($('#wElo').value, 10),
+    fifa: parseInt($('#wFifa').value, 10),
+    market: parseInt($('#wMarket').value, 10),
+  };
+}
+for (const [id, valId] of [['wElo', 'wEloVal'], ['wFifa', 'wFifaVal'], ['wMarket', 'wMarketVal']]) {
+  $('#' + id).addEventListener('input', () => {
+    $('#' + valId).textContent = $('#' + id).value;
+    renderMatch();
+  });
+}
+
 // ---------- 初始化下拉框 ----------
 function initSelectors() {
   const sorted = Object.values(TEAMS).sort((a, b) =>
@@ -52,19 +67,40 @@ function renderMatch() {
   const B = TEAMS[$('#teamB').value];
   const knockout = document.querySelector('input[name="stage"]:checked').value === 'knockout';
   const useHome = $('#homeAdv').checked;
+  const weights = readWeights();
 
   if (A.code === B.code) {
     $('#matchResult').innerHTML = '<div class="card"><p>请选择两支不同的球队 😅</p></div>';
     return;
   }
 
-  const r = predictMatch(A, B, { knockout, useHome });
+  // 四个模型分别预测
+  const results = {};
+  for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, weights });
+  }
+  const r = results.ensemble; // 主展示用集成结果
   const { probs, top, best } = r;
 
   let advanceHtml = '';
   if (knockout) {
-    advanceHtml = `<div class="advance-note">含加时与点球的晋级概率：${teamLabel(A)} ${pct(r.advanceA)} ｜ ${teamLabel(B)} ${pct(r.advanceB)}</div>`;
+    advanceHtml = `<div class="advance-note">含加时与点球的晋级概率（集成）：${teamLabel(A)} ${pct(r.advanceA)} ｜ ${teamLabel(B)} ${pct(r.advanceB)}</div>`;
   }
+
+  // 模型对比表
+  const cmpRows = ['elo', 'fifa', 'market', 'ensemble'].map((m) => {
+    const x = results[m];
+    return `
+      <tr class="${m === 'ensemble' ? 'qualified' : ''}">
+        <td class="team-cell">${MODEL_INFO[m].name}${m === 'ensemble' ? ' ⭐' : ''}</td>
+        <td class="pct"><strong>${x.best.a} : ${x.best.b}</strong></td>
+        <td class="pct">${x.lamA.toFixed(2)} : ${x.lamB.toFixed(2)}</td>
+        <td class="pct">${pct(x.probs.win)}</td>
+        <td class="pct">${pct(x.probs.draw)}</td>
+        <td class="pct">${pct(x.probs.loss)}</td>
+        ${knockout ? `<td class="pct">${pct(x.advanceA)}</td>` : ''}
+      </tr>`;
+  }).join('');
 
   const chips = top.map((s, i) =>
     `<div class="score-chip${i === 0 ? ' best' : ''}">
@@ -96,11 +132,18 @@ function renderMatch() {
         <div class="big-score">${best.a} : ${best.b}</div>
         <div class="team"><span class="flag">${B.flag}</span>${B.zh}<span class="en">${B.en}</span></div>
       </div>
-      <div class="score-note">最可能比分（概率 ${pct(best.p)}）· 预期进球 ${r.lamA.toFixed(2)} : ${r.lamB.toFixed(2)}</div>
+      <div class="score-note">集成模型最可能比分（概率 ${pct(best.p)}）· 预期进球 ${r.lamA.toFixed(2)} : ${r.lamB.toFixed(2)}</div>
       ${advanceHtml}
     </div>
     <div class="card">
-      <div class="section-title">90 分钟胜平负概率</div>
+      <div class="section-title">四个模型对比（⭐ 集成 = 三模型按当前权重 Elo:${weights.elo} / FIFA:${weights.fifa} / 赔率:${weights.market} 加权）</div>
+      <table class="standings">
+        <tr><th style="text-align:left">模型</th><th>最可能比分</th><th>预期进球</th><th>${A.zh}胜</th><th>平</th><th>${B.zh}胜</th>${knockout ? '<th>晋级率</th>' : ''}</tr>
+        ${cmpRows}
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">90 分钟胜平负概率（集成）</div>
       <div class="prob-bar">
         <div class="prob-win" style="flex:${probs.win}">${A.zh}胜 ${pct(probs.win)}</div>
         <div class="prob-draw" style="flex:${probs.draw}">平 ${pct(probs.draw)}</div>
@@ -108,7 +151,7 @@ function renderMatch() {
       </div>
     </div>
     <div class="card">
-      <div class="section-title">最可能的 6 个比分</div>
+      <div class="section-title">最可能的 6 个比分（集成）</div>
       <div class="score-list">${chips}</div>
     </div>
     <div class="card">
@@ -121,7 +164,7 @@ function renderMatch() {
 function renderGroup() {
   const g = $('#groupSelect').value;
   const codes = GROUPS[g];
-  const useHome = true;
+  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights() };
   const RUNS = 5000;
 
   // 单场最可能比分
@@ -129,7 +172,7 @@ function renderGroup() {
   for (let i = 0; i < codes.length; i++) {
     for (let j = i + 1; j < codes.length; j++) {
       const A = TEAMS[codes[i]], B = TEAMS[codes[j]];
-      const r = predictMatch(A, B, { useHome });
+      const r = predictMatch(A, B, cfg);
       fixtures.push(`
         <div class="fixture">
           <span>${teamLabel(A)}</span>
@@ -143,7 +186,7 @@ function renderGroup() {
   const agg = {};
   for (const c of codes) agg[c] = { pts: 0, first: 0, second: 0 };
   for (let i = 0; i < RUNS; i++) {
-    const table = simulateGroup(codes, useHome);
+    const table = simulateGroup(codes, cfg);
     table.forEach((row, idx) => {
       agg[row.code].pts += row.pts;
       if (idx === 0) agg[row.code].first++;
@@ -174,11 +217,11 @@ function renderGroup() {
 
   $('#groupResult').innerHTML = `
     <div class="card">
-      <div class="section-title">${g} 组单场最可能比分</div>
+      <div class="section-title">${g} 组单场最可能比分（${MODEL_INFO[cfg.model].name}）</div>
       <div class="fixtures">${fixtures.join('')}</div>
     </div>
     <div class="card">
-      <div class="section-title">${g} 组出线形势（模拟 ${RUNS.toLocaleString()} 次，前二直接出线，小组第三仍有机会以最佳第三晋级）</div>
+      <div class="section-title">${g} 组出线形势（${MODEL_INFO[cfg.model].name} · 模拟 ${RUNS.toLocaleString()} 次，前二直接出线，小组第三仍有机会以最佳第三晋级）</div>
       <table class="standings">
         <tr><th>#</th><th style="text-align:left">球队</th><th>平均积分</th><th>第一</th><th>第二</th><th colspan="2">前二出线率</th></tr>
         ${rows}
@@ -189,6 +232,7 @@ function renderGroup() {
 // ---------- 全程模拟 ----------
 function renderTournament() {
   const runs = parseInt($('#mcRuns').value, 10);
+  const cfg = { model: $('#mcModel').value, useHome: true, weights: readWeights() };
   const btn = $('#mcBtn');
   btn.disabled = true;
   $('#mcStatus').textContent = '模拟中……';
@@ -197,7 +241,7 @@ function renderTournament() {
   // 让浏览器先渲染状态再开始计算
   setTimeout(() => {
     const t0 = performance.now();
-    const stats = monteCarlo(runs, true);
+    const stats = monteCarlo(runs, cfg);
     const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
 
     const rows = Object.entries(stats)
@@ -213,14 +257,14 @@ function renderTournament() {
           <td class="pct">${pct(r.s[4], 1)}</td>
           <td class="pct">${pct(r.s[5], 1)}</td>
           <td class="bar-cell">
-            <div class="mini-bar"><div style="width:${Math.min(100, r.s[6] * 100 / 0.3 * 1).toFixed(1)}%"></div></div>
+            <div class="mini-bar"><div style="width:${Math.min(100, r.s[6] * 100 / 0.3).toFixed(1)}%"></div></div>
           </td>
           <td class="pct"><strong>${pct(r.s[6], 1)}</strong></td>
         </tr>`).join('');
 
     $('#mcResult').innerHTML = `
       <div class="card">
-        <div class="section-title">48 队全程概率（${runs.toLocaleString()} 次完整模拟，耗时 ${elapsed}s，按夺冠概率排序）</div>
+        <div class="section-title">48 队全程概率（${MODEL_INFO[cfg.model].name} · ${runs.toLocaleString()} 次完整模拟，耗时 ${elapsed}s，按夺冠概率排序）</div>
         <table class="standings">
           <tr><th>#</th><th style="text-align:left">球队</th><th>小组出线</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th colspan="2">夺冠</th></tr>
           ${rows}
@@ -231,9 +275,44 @@ function renderTournament() {
   }, 50);
 }
 
+// ---------- 数据源一览 ----------
+function renderDataTable() {
+  const rows = Object.values(TEAMS)
+    .map((t) => {
+      const w = { elo: 1, fifa: 1, market: 1 };
+      // 三源等权折算的综合 Elo 当量（以联合尺度展示，仅用于排序参考）
+      const mElo = (() => {
+        const pMax = Math.max(...Object.values(TEAMS).map((x) => 100 / (x.odds + 100)));
+        const p = 100 / (t.odds + 100);
+        return 2190 + 121 * Math.log(p / pMax);
+      })();
+      const fifaEq = 1500 + (t.fifa - 1500) * (1000 / 850);
+      const composite = (t.elo + fifaEq + mElo) / 3;
+      return { t, mElo, composite };
+    })
+    .sort((a, b) => b.composite - a.composite)
+    .map(({ t, mElo, composite }, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td class="team-cell">${teamLabel(t)} <span class="dim">${t.group}组${t.host ? ' · 东道主' : ''}</span></td>
+        <td class="pct">${t.elo}</td>
+        <td class="pct">${t.fifa}</td>
+        <td class="pct">+${t.odds.toLocaleString()}</td>
+        <td class="pct">${pct(100 / (t.odds + 100) / 100, 2)}</td>
+        <td class="pct"><strong>${composite.toFixed(0)}</strong></td>
+      </tr>`).join('');
+
+  $('#dataTable').innerHTML = `
+    <table class="standings">
+      <tr><th>#</th><th style="text-align:left">球队</th><th>Elo 分</th><th>FIFA 积分</th><th>夺冠赔率</th><th>隐含夺冠率</th><th>综合实力</th></tr>
+      ${rows}
+    </table>`;
+}
+
 // ---------- 绑定 ----------
 initSelectors();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
 $('#mcBtn').addEventListener('click', renderTournament);
 renderMatch();
+renderDataTable();

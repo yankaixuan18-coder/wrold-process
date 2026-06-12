@@ -1,17 +1,80 @@
-// 预测模型：Elo 实力差 → 预期进球(泊松分布) → 比分概率矩阵
-const HOME_BONUS = 75;   // 东道主（美/加/墨）的主场 Elo 加成
-const BASE_GOALS = 1.38; // 双方实力相当时单队预期进球
-const MAX_GOALS = 8;     // 比分矩阵计算到 8 球
+// 多模型预测引擎
+// 三个独立模型把各自的数据源换算成「Elo 当量分差」，再统一走
+// 泊松分布生成比分概率；集成模型对三者的分差做加权平均。
+//
+//   elo    : Elo 实力分直接相减
+//   fifa   : FIFA 官方积分差 × 换算系数（FIFA 分差对强弱的区分度略低）
+//   market : 由夺冠赔率的隐含概率反推实力（对数尺度），赔率已包含
+//            主场、伤病、阵容等市场信息，因此不再叠加主场加成
+const HOME_BONUS = 75;        // 东道主（美/加/墨）的主场 Elo 加成
+const BASE_GOALS = 1.38;      // 双方实力相当时单队预期进球
+const MAX_GOALS = 8;          // 比分矩阵计算到 8 球
+const FIFA_SCALE = 1000 / 850; // FIFA 积分差 → Elo 当量
+const MARKET_B = 121;          // ln(隐含夺冠概率) → Elo 当量
+const MARKET_TOP = 2190;       // 市场头号热门锚定的 Elo 当量
+
+const MODEL_INFO = {
+  elo: { name: 'Elo 模型', short: 'Elo' },
+  fifa: { name: 'FIFA 排名模型', short: 'FIFA' },
+  market: { name: '市场赔率模型', short: '赔率' },
+  ensemble: { name: '集成模型', short: '集成' },
+};
+const DEFAULT_WEIGHTS = { elo: 1, fifa: 1, market: 1 };
 
 function clamp(x, lo, hi) { return Math.min(hi, Math.max(lo, x)); }
 
-function effectiveElo(team, useHome) {
-  return team.elo + (useHome && team.host ? HOME_BONUS : 0);
+// 美式赔率 → 隐含夺冠概率（未去除抽水，只用于相对比较）
+function impliedProb(odds) { return 100 / (odds + 100); }
+
+// 把夺冠赔率折算成 Elo 当量（以全场最热门球队为锚点）
+let _marketCache = null;
+function marketElo(team) {
+  if (!_marketCache) {
+    const pMax = Math.max(...Object.values(TEAMS).map((t) => impliedProb(t.odds)));
+    _marketCache = {};
+    for (const t of Object.values(TEAMS)) {
+      _marketCache[t.code] = MARKET_TOP + MARKET_B * Math.log(impliedProb(t.odds) / pMax);
+    }
+  }
+  return _marketCache[team.code];
 }
 
-// 由 Elo 差值得到双方预期进球数
-function matchLambdas(teamA, teamB, useHome = true) {
-  const d = effectiveElo(teamA, useHome) - effectiveElo(teamB, useHome);
+// 单一模型给出的 Elo 当量分差（A 相对 B）
+function modelDiff(modelId, A, B, useHome) {
+  const host = (t) => (useHome && t.host ? HOME_BONUS : 0);
+  switch (modelId) {
+    case 'elo':
+      return (A.elo + host(A)) - (B.elo + host(B));
+    case 'fifa':
+      return (A.fifa - B.fifa) * FIFA_SCALE + host(A) - host(B);
+    case 'market':
+      return marketElo(A) - marketElo(B);
+    default:
+      throw new Error('未知模型: ' + modelId);
+  }
+}
+
+function ensembleDiff(A, B, useHome, weights) {
+  const w = weights || DEFAULT_WEIGHTS;
+  const total = w.elo + w.fifa + w.market || 1;
+  return (
+    w.elo * modelDiff('elo', A, B, useHome) +
+    w.fifa * modelDiff('fifa', A, B, useHome) +
+    w.market * modelDiff('market', A, B, useHome)
+  ) / total;
+}
+
+// cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...} }
+function strengthDiff(A, B, cfg = {}) {
+  const { model = 'ensemble', useHome = true, weights } = cfg;
+  return model === 'ensemble'
+    ? ensembleDiff(A, B, useHome, weights)
+    : modelDiff(model, A, B, useHome);
+}
+
+// Elo 当量分差 → 双方预期进球数
+function matchLambdas(A, B, cfg = {}) {
+  const d = strengthDiff(A, B, cfg);
   return [
     clamp(BASE_GOALS * Math.pow(10, d / 1000), 0.15, 4.8),
     clamp(BASE_GOALS * Math.pow(10, -d / 1000), 0.15, 4.8),
@@ -69,26 +132,24 @@ function rankedScores(matrix, topN = 6) {
 }
 
 // 点球大战中 A 队获胜概率：接近五五开，按实力差小幅修正
-function penaltyWinProb(teamA, teamB, useHome = true) {
-  const d = effectiveElo(teamA, useHome) - effectiveElo(teamB, useHome);
-  return clamp(0.5 + d / 4000, 0.35, 0.65);
+function penaltyWinProb(A, B, cfg = {}) {
+  return clamp(0.5 + strengthDiff(A, B, cfg) / 4000, 0.35, 0.65);
 }
 
 // 完整对阵预测（小组赛或淘汰赛）
-function predictMatch(teamA, teamB, { knockout = false, useHome = true } = {}) {
-  const [lamA, lamB] = matchLambdas(teamA, teamB, useHome);
+function predictMatch(A, B, cfg = {}) {
+  const [lamA, lamB] = matchLambdas(A, B, cfg);
   const matrix = scoreMatrix(lamA, lamB);
   const probs = outcomeProbs(matrix);
   const top = rankedScores(matrix);
   const best = top[0];
-
   const result = { lamA, lamB, matrix, probs, top, best };
 
-  if (knockout) {
+  if (cfg.knockout) {
     // 加时赛 30 分钟按正赛强度的 1/3 计算，仍平则点球
     const etMatrix = scoreMatrix(lamA / 3, lamB / 3);
     const et = outcomeProbs(etMatrix);
-    const pPen = penaltyWinProb(teamA, teamB, useHome);
+    const pPen = penaltyWinProb(A, B, cfg);
     result.advanceA = probs.win + probs.draw * (et.win + et.draw * pPen);
     result.advanceB = 1 - result.advanceA;
   }
@@ -104,30 +165,30 @@ function samplePoisson(lambda) {
   return k - 1;
 }
 
-function sampleScore(teamA, teamB, useHome = true) {
-  const [lamA, lamB] = matchLambdas(teamA, teamB, useHome);
+function sampleScore(A, B, cfg) {
+  const [lamA, lamB] = matchLambdas(A, B, cfg);
   return [samplePoisson(lamA), samplePoisson(lamB)];
 }
 
 // 淘汰赛单场随机出胜者
-function sampleKnockoutWinner(codeA, codeB, useHome = true) {
+function sampleKnockoutWinner(codeA, codeB, cfg) {
   const A = TEAMS[codeA], B = TEAMS[codeB];
-  let [ga, gb] = sampleScore(A, B, useHome);
+  const [ga, gb] = sampleScore(A, B, cfg);
   if (ga !== gb) return ga > gb ? codeA : codeB;
-  const [lamA, lamB] = matchLambdas(A, B, useHome);
+  const [lamA, lamB] = matchLambdas(A, B, cfg);
   const ea = samplePoisson(lamA / 3), eb = samplePoisson(lamB / 3);
   if (ea !== eb) return ea > eb ? codeA : codeB;
-  return Math.random() < penaltyWinProb(A, B, useHome) ? codeA : codeB;
+  return Math.random() < penaltyWinProb(A, B, cfg) ? codeA : codeB;
 }
 
 // 模拟一个小组的 6 场比赛，返回排序后的积分榜
-function simulateGroup(groupCodes, useHome = true) {
+function simulateGroup(groupCodes, cfg) {
   const table = {};
   for (const c of groupCodes) table[c] = { code: c, pts: 0, gf: 0, ga: 0 };
   for (let i = 0; i < groupCodes.length; i++) {
     for (let j = i + 1; j < groupCodes.length; j++) {
       const a = groupCodes[i], b = groupCodes[j];
-      const [ga, gb] = sampleScore(TEAMS[a], TEAMS[b], useHome);
+      const [ga, gb] = sampleScore(TEAMS[a], TEAMS[b], cfg);
       table[a].gf += ga; table[a].ga += gb;
       table[b].gf += gb; table[b].ga += ga;
       if (ga > gb) table[a].pts += 3;
@@ -141,8 +202,8 @@ function simulateGroup(groupCodes, useHome = true) {
 
 // 将 8 支成绩最好的小组第三分配到对阵模板的限定槽位（回溯匹配）
 function assignThirds(thirds) {
-  const slots = R32_TEMPLATE.filter(m => m.away.startsWith('3:'))
-    .map(m => ({ id: m.id, allowed: m.away.slice(2) }));
+  const slots = R32_TEMPLATE.filter((m) => m.away.startsWith('3:'))
+    .map((m) => ({ id: m.id, allowed: m.away.slice(2) }));
   const assign = {};
   const used = new Set();
   function backtrack(i) {
@@ -161,7 +222,7 @@ function assignThirds(thirds) {
   }
   if (!backtrack(0)) {
     // 极少数组合不满足限定时退化为按顺序分配
-    const remaining = thirds.filter(t => !used.has(t.code));
+    const remaining = thirds.filter((t) => !used.has(t.code));
     for (const slot of slots) {
       if (!assign[slot.id]) assign[slot.id] = remaining.shift().code;
     }
@@ -171,13 +232,13 @@ function assignThirds(thirds) {
 
 // 完整模拟一届世界杯，返回每队止步的轮次
 // 轮次编码：0=小组出局 1=进32强 2=进16强 3=进8强 4=进4强 5=进决赛 6=夺冠
-function simulateTournament(useHome = true) {
+function simulateTournament(cfg) {
   const reached = {};
   for (const c of Object.keys(TEAMS)) reached[c] = 0;
 
   const winners = {}, runners = {}, thirds = [];
   for (const g of GROUP_NAMES) {
-    const table = simulateGroup(GROUPS[g], useHome);
+    const table = simulateGroup(GROUPS[g], cfg);
     winners[g] = table[0].code;
     runners[g] = table[1].code;
     thirds.push({ ...table[2], group: g });
@@ -200,7 +261,7 @@ function simulateTournament(useHome = true) {
   const matchWinner = {};
   for (const m of R32_TEMPLATE) {
     const a = resolveSlot(m.home, m.id), b = resolveSlot(m.away, m.id);
-    const w = sampleKnockoutWinner(a, b, useHome);
+    const w = sampleKnockoutWinner(a, b, cfg);
     matchWinner[m.id] = w;
     reached[w] = 2;
   }
@@ -208,7 +269,7 @@ function simulateTournament(useHome = true) {
   let prevIds = [];
   R16_TEMPLATE.forEach((pair, idx) => {
     const id = 89 + idx;
-    const w = sampleKnockoutWinner(matchWinner[pair[0]], matchWinner[pair[1]], useHome);
+    const w = sampleKnockoutWinner(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
     matchWinner[id] = w;
     reached[w] = 3;
     prevIds.push(id);
@@ -218,7 +279,7 @@ function simulateTournament(useHome = true) {
     const nextIds = [];
     for (let i = 0; i < prevIds.length; i += 2) {
       const newId = Math.max(...Object.keys(matchWinner).map(Number)) + 1;
-      const w = sampleKnockoutWinner(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], useHome);
+      const w = sampleKnockoutWinner(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
       matchWinner[newId] = w;
       reached[w] = round;
       nextIds.push(newId);
@@ -230,19 +291,18 @@ function simulateTournament(useHome = true) {
 }
 
 // 跑 N 次完整模拟，统计各队走到每个阶段的概率
-function monteCarlo(iterations, useHome = true, onProgress = null) {
+function monteCarlo(iterations, cfg) {
   const stats = {};
   for (const c of Object.keys(TEAMS)) stats[c] = [0, 0, 0, 0, 0, 0, 0];
   for (let i = 0; i < iterations; i++) {
-    const reached = simulateTournament(useHome);
+    const reached = simulateTournament(cfg);
     for (const [c, r] of Object.entries(reached)) {
       for (let s = 1; s <= r; s++) stats[c][s]++;
     }
-    if (onProgress && i % 500 === 0) onProgress(i / iterations);
   }
   const out = {};
   for (const [c, arr] of Object.entries(stats)) {
-    out[c] = arr.map(n => n / iterations);
+    out[c] = arr.map((n) => n / iterations);
   }
   return out; // code -> [_, P出线, P16强, P8强, P4强, P决赛, P夺冠]
 }
