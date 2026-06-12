@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 美加墨世界杯比分预测</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  {{CSS}}
+</head>
+<body>
+  <header>
+    <h1>⚽ 2026 美加墨世界杯比分预测</h1>
+    <p class="subtitle">3 数据源 × 3 模型 + 加权集成 · 48 强真实分组 · 仅供娱乐参考</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="match">对阵预测</button>
+    <button class="tab" data-tab="group">小组赛模拟</button>
+    <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="results">实际赛果</button>
+    <button class="tab" data-tab="data">数据源</button>
+    <button class="tab" data-tab="about">关于模型</button>
+  </nav>
+
+  <!-- 对阵预测 -->
+  <section id="tab-match" class="panel active">
+    <div class="card">
+      <div class="selectors">
+        <div class="team-select">
+          <label>主队 / 队伍 A</label>
+          <select id="teamA"></select>
+        </div>
+        <div class="vs">VS</div>
+        <div class="team-select">
+          <label>客队 / 队伍 B</label>
+          <select id="teamB"></select>
+        </div>
+      </div>
+      <div class="options">
+        <label class="opt"><input type="radio" name="stage" value="group" checked> 小组赛（可打平）</label>
+        <label class="opt"><input type="radio" name="stage" value="knockout"> 淘汰赛（加时 + 点球）</label>
+        <label class="opt"><input type="checkbox" id="homeAdv" checked> 东道主主场加成（美/加/墨）</label>
+        <label class="opt"><input type="checkbox" id="dcToggle" checked> Dixon-Coles 低比分修正</label>
+        <button id="predictBtn" class="primary">预测比分</button>
+      </div>
+      <div class="weights">
+        <span class="section-title" style="margin:0">集成权重：</span>
+        <label>Elo <input type="range" id="wElo" min="0" max="10" value="5"><span id="wEloVal">5</span></label>
+        <label>FIFA <input type="range" id="wFifa" min="0" max="10" value="5"><span id="wFifaVal">5</span></label>
+        <label>赔率 <input type="range" id="wMarket" min="0" max="10" value="5"><span id="wMarketVal">5</span></label>
+      </div>
+    </div>
+    <div id="matchResult"></div>
+  </section>
+
+  <!-- 小组赛模拟 -->
+  <section id="tab-group" class="panel">
+    <div class="card">
+      <div class="options">
+        <label>选择小组：</label>
+        <select id="groupSelect"></select>
+        <label>模型：</label>
+        <select id="groupModel">
+          <option value="ensemble" selected>集成（推荐）</option>
+          <option value="elo">仅 Elo</option>
+          <option value="fifa">仅 FIFA 排名</option>
+          <option value="market">仅市场赔率</option>
+        </select>
+        <button id="groupBtn" class="primary">模拟该小组（5000 次）</button>
+      </div>
+    </div>
+    <div id="groupResult"></div>
+  </section>
+
+  <!-- 全程模拟 -->
+  <section id="tab-tournament" class="panel">
+    <div class="card">
+      <div class="options">
+        <label>模拟次数：</label>
+        <select id="mcRuns">
+          <option value="2000">2,000（快）</option>
+          <option value="5000" selected>5,000（推荐）</option>
+          <option value="10000">10,000（慢但更准）</option>
+        </select>
+        <label>模型：</label>
+        <select id="mcModel">
+          <option value="ensemble" selected>集成（推荐）</option>
+          <option value="elo">仅 Elo</option>
+          <option value="fifa">仅 FIFA 排名</option>
+          <option value="market">仅市场赔率</option>
+        </select>
+        <button id="mcBtn" class="primary">模拟整届世界杯</button>
+        <span id="mcStatus" class="status"></span>
+      </div>
+    </div>
+    <div id="mcResult"></div>
+  </section>
+
+  <!-- 实际赛果 -->
+  <section id="tab-results" class="panel">
+    <div class="card">
+      <div class="section-title">录入小组赛真实比分（已赛场次将直接计入模拟，并按 Elo 公式动态修正各队实力）</div>
+      <div class="options">
+        <label>小组：</label>
+        <select id="resGroup"></select>
+        <label>对阵：</label>
+        <select id="resFixture"></select>
+        <input type="number" id="resGa" min="0" max="20" value="0" class="score-input">
+        <span>:</span>
+        <input type="number" id="resGb" min="0" max="20" value="0" class="score-input">
+        <button id="resAdd" class="primary">录入 / 更新</button>
+      </div>
+      <p class="hint">赛果保存在浏览器本地（localStorage），刷新不丢失。</p>
+    </div>
+    <div class="card">
+      <div class="section-title">已录入的赛果</div>
+      <div id="resList"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">赛果带来的实力修正（Elo 当量，正值 = 表现超出预期）</div>
+      <div id="adjList"></div>
+    </div>
+  </section>
+
+  <!-- 数据源 -->
+  <section id="tab-data" class="panel">
+    <div class="card">
+      <div class="section-title">48 强三大数据源一览（点击表头排序所用的综合实力即三源等权集成）</div>
+      <div id="dataTable"></div>
+    </div>
+    <div class="card about">
+      <h2>数据来源与可信度</h2>
+      <ul>
+        <li><strong>Elo 实力分</strong>：eloratings.net 风格的实力评分，按 2026 年 6 月开赛前水平估算。</li>
+        <li><strong>FIFA 官方积分</strong>：2026 年 4–6 月 FIFA/Coca-Cola 排名。头部球队（法国、西班牙 1876.4、阿根廷、英格兰、葡萄牙的位次）为媒体报道证实，其余按最近一期公开排名估算。</li>
+        <li><strong>夺冠赔率</strong>：2026 年 6 月开赛前 BetMGM / FanDuel 等机构行情。西班牙 +450、法国 +500、英格兰 +700、巴西 +800、葡萄牙/阿根廷 +900、德国 +1400、荷兰 +2000、挪威 +3500、哥伦比亚 +4000、乌拉圭 +6500 为报道证实，其余为按市场惯例估算。</li>
+        <li>所有数值都在 <code>js/data.js</code> 中，可手动修改，刷新页面即生效。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 关于 -->
+  <section id="tab-about" class="panel">
+    <div class="card about">
+      <h2>三个模型 + 集成是怎么算的</h2>
+      <ul>
+        <li><strong>① Elo 模型：</strong>直接用两队 Elo 分差衡量实力差距，东道主美/加/墨 +75 主场加成。</li>
+        <li><strong>② FIFA 排名模型：</strong>用 FIFA 官方积分差（乘换算系数对齐到 Elo 尺度），同样含主场加成。FIFA 积分反映近年正式比赛战绩，与 Elo 的侧重不同。</li>
+        <li><strong>③ 市场赔率模型：</strong>把博彩公司夺冠赔率换算成隐含概率，再按对数尺度反推每队实力。赔率凝聚了市场对阵容、伤病、状态的全部判断，因此该模型不再叠加主场加成（市场已计价）。</li>
+        <li><strong>④ 集成模型：</strong>对三个模型的实力分差做加权平均（权重可在对阵预测页调节，默认等权）。多源集成可以抵消单一数据源的偏差——这是提升预测稳健性最有效的手段。</li>
+        <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
+        <li><strong>Dixon-Coles 修正：</strong>独立泊松会系统性低估 0:0 / 1:1、高估 1:0 / 0:1（攻防博弈导致低比分相关），按经典 Dixon-Coles (1997) τ 系数（ρ = −0.13）校正低比分区域。</li>
+        <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
+        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
+        <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
+      </ul>
+      <p class="disclaimer">⚠️ 预测结果由统计模型生成，仅供娱乐与参考，请勿用于赌博。足球是圆的！</p>
+    </div>
+  </section>
+
+  <footer>2026 FIFA World Cup · United States / Canada / Mexico · 48 队 · 104 场</footer>
+
+{{JS}}
+</body>
+</html>

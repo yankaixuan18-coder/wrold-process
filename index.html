@@ -1,10 +1,208 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <!-- 本文件由 build.js 自动生成，请勿直接编辑；修改 css/ js/ 源文件后运行 node build.js -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2026 美加墨世界杯比分预测</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: linear-gradient(160deg, #0b1530 0%, #11254d 50%, #0b1530 100%);
+  color: #e8eefc;
+  min-height: 100vh;
+  padding-bottom: 60px;
+}
+
+header { text-align: center; padding: 36px 16px 20px; }
+header h1 {
+  font-size: 1.9rem;
+  background: linear-gradient(90deg, #4ade80, #38bdf8, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.subtitle { color: #93a6c8; margin-top: 8px; font-size: 0.92rem; }
+
+.tabs {
+  display: flex; justify-content: center; gap: 8px;
+  flex-wrap: wrap; margin: 12px auto 20px; padding: 0 12px;
+}
+.tab {
+  background: #1a2c55; color: #b9c8e8; border: 1px solid #2c4070;
+  padding: 10px 22px; border-radius: 999px; cursor: pointer;
+  font-size: 0.95rem; transition: all 0.15s;
+}
+.tab:hover { background: #24386b; }
+.tab.active { background: #38bdf8; color: #06203a; font-weight: 700; border-color: #38bdf8; }
+
+.panel { display: none; max-width: 880px; margin: 0 auto; padding: 0 16px; }
+.panel.active { display: block; }
+
+.card {
+  background: rgba(26, 44, 85, 0.7);
+  border: 1px solid #2c4070;
+  border-radius: 16px;
+  padding: 22px;
+  margin-bottom: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.selectors { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; }
+.team-select { flex: 1; min-width: 220px; }
+.team-select label { display: block; color: #93a6c8; font-size: 0.85rem; margin-bottom: 6px; }
+.vs { font-weight: 800; color: #f472b6; padding-bottom: 10px; }
+
+select, button {
+  font-family: inherit; font-size: 0.95rem;
+}
+select {
+  width: 100%; padding: 10px 12px;
+  background: #0e1d3d; color: #e8eefc;
+  border: 1px solid #2c4070; border-radius: 10px;
+}
+#groupSelect, #mcRuns { width: auto; min-width: 160px; }
+
+.options {
+  display: flex; align-items: center; gap: 18px;
+  flex-wrap: wrap; margin-top: 16px; color: #b9c8e8; font-size: 0.92rem;
+}
+.opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+button.primary {
+  background: linear-gradient(90deg, #4ade80, #38bdf8);
+  color: #06203a; font-weight: 700;
+  border: none; border-radius: 10px;
+  padding: 10px 26px; cursor: pointer;
+  transition: transform 0.1s, filter 0.15s;
+}
+button.primary:hover { filter: brightness(1.1); }
+button.primary:active { transform: scale(0.97); }
+button.primary:disabled { filter: grayscale(0.7); cursor: wait; }
+
+.status { color: #93a6c8; font-size: 0.85rem; }
+
+.weights {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 14px; border-top: 1px dashed #2c4070;
+  color: #b9c8e8; font-size: 0.88rem;
+}
+.weights label { display: flex; align-items: center; gap: 6px; }
+.weights input[type="range"] { width: 90px; accent-color: #38bdf8; }
+.weights span { min-width: 14px; text-align: center; color: #38bdf8; font-weight: 700; }
+
+.dim { color: #5b6f96; font-size: 0.78rem; }
+.up { color: #4ade80; font-weight: 700; }
+.down { color: #f472b6; font-weight: 700; }
+.hint { color: #93a6c8; font-size: 0.85rem; margin-top: 10px; }
+
+.score-input {
+  width: 60px; padding: 9px 10px; text-align: center;
+  background: #0e1d3d; color: #e8eefc;
+  border: 1px solid #2c4070; border-radius: 10px;
+  font-family: inherit; font-size: 0.95rem;
+}
+
+.fixture.played { border-color: #4ade80; }
+.fixture.played .fs { color: #4ade80; }
+.fixture .fs em { font-style: normal; font-size: 0.7rem; color: #93a6c8; }
+.fixture .del {
+  background: none; border: none; color: #f472b6;
+  cursor: pointer; font-size: 0.95rem; padding: 2px 6px;
+}
+.del-all {
+  background: none; border: 1px solid #f472b6; color: #f472b6;
+  border-radius: 8px; padding: 7px 16px; cursor: pointer; font-size: 0.85rem;
+}
+
+/* 比分结果 */
+.score-banner {
+  text-align: center; padding: 26px 16px;
+}
+.score-banner .teams-line {
+  display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.score-banner .team { font-size: 1.1rem; font-weight: 600; min-width: 150px; }
+.score-banner .team .flag { font-size: 2.4rem; display: block; }
+.score-banner .team .en { color: #93a6c8; font-size: 0.78rem; display: block; }
+.big-score {
+  font-size: 3.4rem; font-weight: 900;
+  color: #4ade80; letter-spacing: 4px;
+  text-shadow: 0 0 24px rgba(74, 222, 128, 0.4);
+}
+.score-note { color: #93a6c8; margin-top: 8px; font-size: 0.88rem; }
+.advance-note { margin-top: 10px; color: #f7c948; font-size: 0.95rem; }
+
+.section-title { color: #93a6c8; font-size: 0.88rem; margin: 4px 0 10px; letter-spacing: 1px; }
+
+/* 概率条 */
+.prob-bar {
+  display: flex; height: 34px; border-radius: 10px; overflow: hidden;
+  font-size: 0.82rem; font-weight: 700; color: #06203a;
+}
+.prob-bar div { display: flex; align-items: center; justify-content: center; min-width: 0; white-space: nowrap; overflow: hidden; }
+.prob-win { background: #4ade80; }
+.prob-draw { background: #93a6c8; }
+.prob-loss { background: #f472b6; }
+
+/* 比分列表 */
+.score-list { display: flex; gap: 10px; flex-wrap: wrap; }
+.score-chip {
+  background: #0e1d3d; border: 1px solid #2c4070; border-radius: 10px;
+  padding: 10px 14px; text-align: center; min-width: 84px;
+}
+.score-chip .s { font-size: 1.2rem; font-weight: 800; color: #38bdf8; }
+.score-chip .p { font-size: 0.78rem; color: #93a6c8; margin-top: 2px; }
+.score-chip.best { border-color: #4ade80; }
+.score-chip.best .s { color: #4ade80; }
+
+/* 热力图 */
+.heatmap { border-collapse: collapse; margin: 0 auto; font-size: 0.78rem; }
+.heatmap th, .heatmap td {
+  width: 46px; height: 32px; text-align: center;
+  border: 1px solid #1a2c55; color: #b9c8e8;
+}
+.heatmap th { background: #0e1d3d; font-weight: 600; }
+.heatmap td { color: #e8eefc; }
+
+/* 表格 */
+table.standings { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.standings th, table.standings td {
+  padding: 10px 8px; text-align: center; border-bottom: 1px solid #2c4070;
+}
+table.standings th { color: #93a6c8; font-weight: 600; font-size: 0.82rem; }
+table.standings td.team-cell { text-align: left; white-space: nowrap; }
+table.standings .bar-cell { width: 34%; }
+.mini-bar {
+  background: #0e1d3d; border-radius: 6px; height: 16px; overflow: hidden;
+}
+.mini-bar div { height: 100%; background: linear-gradient(90deg, #4ade80, #38bdf8); }
+.pct { font-variant-numeric: tabular-nums; }
+tr.qualified td { background: rgba(74, 222, 128, 0.07); }
+
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.fixture {
+  background: #0e1d3d; border: 1px solid #2c4070; border-radius: 10px;
+  padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.9rem;
+}
+.fixture .fs { font-weight: 800; color: #38bdf8; }
+
+.about ul { padding-left: 20px; line-height: 1.9; }
+.about h2 { margin-bottom: 12px; color: #38bdf8; }
+.disclaimer { margin-top: 16px; color: #f7c948; }
+
+footer { text-align: center; color: #5b6f96; font-size: 0.8rem; margin-top: 40px; }
+
+@media (max-width: 600px) {
+  .big-score { font-size: 2.4rem; }
+  .heatmap th, .heatmap td { width: 32px; height: 26px; font-size: 0.65rem; }
+}
+
+  </style>
 </head>
 <body>
   <header>
@@ -159,9 +357,967 @@
 
   <footer>2026 FIFA World Cup · United States / Canada / Mexico · 48 队 · 104 场</footer>
 
-  <script src="js/data.js"></script>
-  <script src="js/results.js"></script>
-  <script src="js/model.js"></script>
-  <script src="js/app.js"></script>
+<script>
+// ===== js/data.js =====
+// 2026 美加墨世界杯 48 强数据 —— 三个独立数据源
+// 分组为 2025-12-05 华盛顿抽签 + 2026 年 3 月附加赛的最终结果
+//
+// 每队三个实力指标（对应三个预测模型）：
+//   elo  : Elo 实力分（参考 eloratings.net 风格，估算值）
+//   fifa : FIFA 官方排名积分（2026 年 4-6 月版；法国/西班牙/阿根廷等头部为报道证实值，其余为估算）
+//   odds : 博彩公司夺冠赔率（美式赔率 +X；西班牙+450/法国+500/英格兰+700/巴西+800/
+//          葡萄牙+900/阿根廷+900/德国+1400/荷兰+2000/挪威+3500/哥伦比亚+4000/乌拉圭+6500
+//          为 2026 年 6 月 BetMGM 等机构报道证实值，其余为按市场惯例估算）
+// 所有数值都可手动修改，页面会即时使用新值。
+const TEAMS = {
+  // A 组
+  MEX: { code: 'MEX', zh: '墨西哥', en: 'Mexico', flag: '🇲🇽', elo: 1870, fifa: 1690, odds: 5000, group: 'A', host: true },
+  RSA: { code: 'RSA', zh: '南非', en: 'South Africa', flag: '🇿🇦', elo: 1690, fifa: 1450, odds: 25000, group: 'A' },
+  KOR: { code: 'KOR', zh: '韩国', en: 'South Korea', flag: '🇰🇷', elo: 1820, fifa: 1590, odds: 15000, group: 'A' },
+  CZE: { code: 'CZE', zh: '捷克', en: 'Czechia', flag: '🇨🇿', elo: 1790, fifa: 1480, odds: 15000, group: 'A' },
+  // B 组
+  CAN: { code: 'CAN', zh: '加拿大', en: 'Canada', flag: '🇨🇦', elo: 1810, fifa: 1560, odds: 10000, group: 'B', host: true },
+  SUI: { code: 'SUI', zh: '瑞士', en: 'Switzerland', flag: '🇨🇭', elo: 1880, fifa: 1655, odds: 8000, group: 'B' },
+  QAT: { code: 'QAT', zh: '卡塔尔', en: 'Qatar', flag: '🇶🇦', elo: 1640, fifa: 1410, odds: 50000, group: 'B' },
+  BIH: { code: 'BIH', zh: '波黑', en: 'Bosnia & Herzegovina', flag: '🇧🇦', elo: 1730, fifa: 1400, odds: 30000, group: 'B' },
+  // C 组
+  BRA: { code: 'BRA', zh: '巴西', en: 'Brazil', flag: '🇧🇷', elo: 2050, fifa: 1760, odds: 800, group: 'C' },
+  MAR: { code: 'MAR', zh: '摩洛哥', en: 'Morocco', flag: '🇲🇦', elo: 1940, fifa: 1716, odds: 3000, group: 'C' },
+  SCO: { code: 'SCO', zh: '苏格兰', en: 'Scotland', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', elo: 1790, fifa: 1480, odds: 20000, group: 'C' },
+  HAI: { code: 'HAI', zh: '海地', en: 'Haiti', flag: '🇭🇹', elo: 1560, fifa: 1210, odds: 100000, group: 'C' },
+  // D 组
+  USA: { code: 'USA', zh: '美国', en: 'United States', flag: '🇺🇸', elo: 1850, fifa: 1680, odds: 5000, group: 'D', host: true },
+  TUR: { code: 'TUR', zh: '土耳其', en: 'Türkiye', flag: '🇹🇷', elo: 1860, fifa: 1580, odds: 8000, group: 'D' },
+  AUS: { code: 'AUS', zh: '澳大利亚', en: 'Australia', flag: '🇦🇺', elo: 1780, fifa: 1570, odds: 25000, group: 'D' },
+  PAR: { code: 'PAR', zh: '巴拉圭', en: 'Paraguay', flag: '🇵🇾', elo: 1790, fifa: 1480, odds: 25000, group: 'D' },
+  // E 组
+  GER: { code: 'GER', zh: '德国', en: 'Germany', flag: '🇩🇪', elo: 1980, fifa: 1715, odds: 1400, group: 'E' },
+  ECU: { code: 'ECU', zh: '厄瓜多尔', en: 'Ecuador', flag: '🇪🇨', elo: 1890, fifa: 1590, odds: 6500, group: 'E' },
+  CIV: { code: 'CIV', zh: '科特迪瓦', en: 'Ivory Coast', flag: '🇨🇮', elo: 1780, fifa: 1490, odds: 20000, group: 'E' },
+  CUW: { code: 'CUW', zh: '库拉索', en: 'Curaçao', flag: '🇨🇼', elo: 1580, fifa: 1310, odds: 100000, group: 'E' },
+  // F 组
+  NED: { code: 'NED', zh: '荷兰', en: 'Netherlands', flag: '🇳🇱', elo: 2010, fifa: 1755, odds: 2000, group: 'F' },
+  JPN: { code: 'JPN', zh: '日本', en: 'Japan', flag: '🇯🇵', elo: 1900, fifa: 1640, odds: 4000, group: 'F' },
+  TUN: { code: 'TUN', zh: '突尼斯', en: 'Tunisia', flag: '🇹🇳', elo: 1740, fifa: 1500, odds: 30000, group: 'F' },
+  SWE: { code: 'SWE', zh: '瑞典', en: 'Sweden', flag: '🇸🇪', elo: 1790, fifa: 1470, odds: 15000, group: 'F' },
+  // G 组
+  BEL: { code: 'BEL', zh: '比利时', en: 'Belgium', flag: '🇧🇪', elo: 1935, fifa: 1740, odds: 4000, group: 'G' },
+  IRN: { code: 'IRN', zh: '伊朗', en: 'Iran', flag: '🇮🇷', elo: 1800, fifa: 1620, odds: 25000, group: 'G' },
+  EGY: { code: 'EGY', zh: '埃及', en: 'Egypt', flag: '🇪🇬', elo: 1760, fifa: 1520, odds: 20000, group: 'G' },
+  NZL: { code: 'NZL', zh: '新西兰', en: 'New Zealand', flag: '🇳🇿', elo: 1590, fifa: 1300, odds: 50000, group: 'G' },
+  // H 组
+  ESP: { code: 'ESP', zh: '西班牙', en: 'Spain', flag: '🇪🇸', elo: 2190, fifa: 1876, odds: 450, group: 'H' },
+  URU: { code: 'URU', zh: '乌拉圭', en: 'Uruguay', flag: '🇺🇾', elo: 1900, fifa: 1670, odds: 6500, group: 'H' },
+  KSA: { code: 'KSA', zh: '沙特阿拉伯', en: 'Saudi Arabia', flag: '🇸🇦', elo: 1650, fifa: 1410, odds: 50000, group: 'H' },
+  CPV: { code: 'CPV', zh: '佛得角', en: 'Cape Verde', flag: '🇨🇻', elo: 1620, fifa: 1380, odds: 50000, group: 'H' },
+  // I 组
+  FRA: { code: 'FRA', zh: '法国', en: 'France', flag: '🇫🇷', elo: 2090, fifa: 1880, odds: 500, group: 'I' },
+  NOR: { code: 'NOR', zh: '挪威', en: 'Norway', flag: '🇳🇴', elo: 1950, fifa: 1600, odds: 3500, group: 'I' },
+  SEN: { code: 'SEN', zh: '塞内加尔', en: 'Senegal', flag: '🇸🇳', elo: 1850, fifa: 1645, odds: 8000, group: 'I' },
+  IRQ: { code: 'IRQ', zh: '伊拉克', en: 'Iraq', flag: '🇮🇶', elo: 1650, fifa: 1400, odds: 50000, group: 'I' },
+  // J 组
+  ARG: { code: 'ARG', zh: '阿根廷', en: 'Argentina', flag: '🇦🇷', elo: 2175, fifa: 1885, odds: 900, group: 'J' },
+  AUT: { code: 'AUT', zh: '奥地利', en: 'Austria', flag: '🇦🇹', elo: 1830, fifa: 1580, odds: 10000, group: 'J' },
+  ALG: { code: 'ALG', zh: '阿尔及利亚', en: 'Algeria', flag: '🇩🇿', elo: 1790, fifa: 1520, odds: 25000, group: 'J' },
+  JOR: { code: 'JOR', zh: '约旦', en: 'Jordan', flag: '🇯🇴', elo: 1660, fifa: 1400, odds: 50000, group: 'J' },
+  // K 组
+  POR: { code: 'POR', zh: '葡萄牙', en: 'Portugal', flag: '🇵🇹', elo: 2040, fifa: 1780, odds: 900, group: 'K' },
+  COL: { code: 'COL', zh: '哥伦比亚', en: 'Colombia', flag: '🇨🇴', elo: 1930, fifa: 1695, odds: 4000, group: 'K' },
+  UZB: { code: 'UZB', zh: '乌兹别克斯坦', en: 'Uzbekistan', flag: '🇺🇿', elo: 1700, fifa: 1440, odds: 50000, group: 'K' },
+  COD: { code: 'COD', zh: '刚果（金）', en: 'DR Congo', flag: '🇨🇩', elo: 1700, fifa: 1400, odds: 50000, group: 'K' },
+  // L 组
+  ENG: { code: 'ENG', zh: '英格兰', en: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', elo: 2100, fifa: 1830, odds: 700, group: 'L' },
+  CRO: { code: 'CRO', zh: '克罗地亚', en: 'Croatia', flag: '🇭🇷', elo: 1930, fifa: 1710, odds: 5000, group: 'L' },
+  GHA: { code: 'GHA', zh: '加纳', en: 'Ghana', flag: '🇬🇭', elo: 1750, fifa: 1400, odds: 25000, group: 'L' },
+  PAN: { code: 'PAN', zh: '巴拿马', en: 'Panama', flag: '🇵🇦', elo: 1700, fifa: 1450, odds: 30000, group: 'L' },
+};
+
+const GROUPS = {};
+for (const t of Object.values(TEAMS)) {
+  (GROUPS[t.group] = GROUPS[t.group] || []).push(t.code);
+}
+const GROUP_NAMES = Object.keys(GROUPS).sort();
+
+// 32 强对阵模板（官方赛程 M73-M88）。
+// '1A' = A 组第一，'2B' = B 组第二，'3:ABCDF' = 来自 A/B/C/D/F 组之一的小组第三
+const R32_TEMPLATE = [
+  { id: 73, home: '2A', away: '2B' },
+  { id: 74, home: '1E', away: '3:ABCDF' },
+  { id: 75, home: '1F', away: '2C' },
+  { id: 76, home: '1C', away: '2F' },
+  { id: 77, home: '1I', away: '3:CDFGH' },
+  { id: 78, home: '2E', away: '2I' },
+  { id: 79, home: '1A', away: '3:CEFHI' },
+  { id: 80, home: '2K', away: '2L' },
+  { id: 81, home: '1D', away: '3:BEFIJ' },
+  { id: 82, home: '1G', away: '3:AEHIJ' },
+  { id: 83, home: '2D', away: '2G' },
+  { id: 84, home: '1H', away: '2J' },
+  { id: 85, home: '1B', away: '3:EFGIJ' },
+  { id: 86, home: '1J', away: '2H' },
+  { id: 87, home: '1K', away: '3:DEIJL' },
+  { id: 88, home: '1L', away: '3:EHIJK' },
+];
+
+// 后续轮次按相邻配对推进（近似官方走位，对整体概率影响很小）
+const R16_TEMPLATE = [[74, 77], [73, 75], [76, 78], [79, 80], [83, 84], [81, 82], [86, 88], [85, 87]];
+
+// ===== js/results.js =====
+// 实际赛果录入与动态实力修正
+// 录入的真实比分有两个作用：
+//   1. 已赛场次在小组赛/全程模拟中直接使用真实比分，不再随机
+//   2. 按 Elo 更新公式（K=50，含净胜球放大系数）对各队实力做
+//      贝叶斯式动态修正，修正量 ADJ 叠加到所有模型的实力差上
+const STORAGE_KEY = 'wc2026_results';
+
+const RESULTS = [];          // [{a, b, ga, gb}] 按录入顺序
+const ADJ = {};              // code -> Elo 当量修正值
+const RESULT_MAP = {};       // 'A|B' -> [ga, gb]（含反向键）
+
+function loadResults() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      for (const r of JSON.parse(raw)) {
+        if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
+      }
+    }
+  } catch (e) { /* localStorage 不可用时静默忽略 */ }
+}
+
+function saveResults() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(RESULTS));
+  } catch (e) { /* ignore */ }
+}
+
+function rebuildResultMap() {
+  for (const k of Object.keys(RESULT_MAP)) delete RESULT_MAP[k];
+  for (const r of RESULTS) {
+    RESULT_MAP[r.a + '|' + r.b] = [r.ga, r.gb];
+    RESULT_MAP[r.b + '|' + r.a] = [r.gb, r.ga];
+  }
+}
+
+function getActualResult(a, b) {
+  return RESULT_MAP[a + '|' + b] || null;
+}
+
+// 录入（同一对阵重复录入则覆盖）
+function addResult(a, b, ga, gb) {
+  const idx = RESULTS.findIndex(
+    (r) => (r.a === a && r.b === b) || (r.a === b && r.b === a));
+  if (idx >= 0) RESULTS.splice(idx, 1);
+  RESULTS.push({ a, b, ga, gb });
+  saveResults();
+  recomputeAdjustments();
+}
+
+function removeResult(i) {
+  RESULTS.splice(i, 1);
+  saveResults();
+  recomputeAdjustments();
+}
+
+function clearResults() {
+  RESULTS.length = 0;
+  saveResults();
+  recomputeAdjustments();
+}
+
+// 按录入顺序回放全部赛果，逐场做 Elo 更新
+// delta = K × G × (实际得分 - 预期得分)，G 为净胜球放大系数
+function recomputeAdjustments() {
+  for (const k of Object.keys(ADJ)) delete ADJ[k];
+  rebuildResultMap();
+  const K = 50;
+  for (const r of RESULTS) {
+    const A = TEAMS[r.a], B = TEAMS[r.b];
+    // 预期值用集成实力差（含此前赛果的累计修正与东道主主场）
+    const d = strengthDiff(A, B, { model: 'ensemble', useHome: true });
+    const we = 1 / (1 + Math.pow(10, -d / 400));
+    const w = r.ga > r.gb ? 1 : r.ga === r.gb ? 0.5 : 0;
+    const margin = Math.abs(r.ga - r.gb);
+    const g = margin <= 1 ? 1 : margin === 2 ? 1.5 : (11 + margin) / 8;
+    const delta = K * g * (w - we);
+    ADJ[r.a] = (ADJ[r.a] || 0) + delta;
+    ADJ[r.b] = (ADJ[r.b] || 0) - delta;
+  }
+}
+
+loadResults();
+rebuildResultMap();
+
+// ===== js/model.js =====
+// 多模型预测引擎
+// 三个独立模型把各自的数据源换算成「Elo 当量分差」，再统一走
+// 泊松分布生成比分概率；集成模型对三者的分差做加权平均。
+//
+//   elo    : Elo 实力分直接相减
+//   fifa   : FIFA 官方积分差 × 换算系数（FIFA 分差对强弱的区分度略低）
+//   market : 由夺冠赔率的隐含概率反推实力（对数尺度），赔率已包含
+//            主场、伤病、阵容等市场信息，因此不再叠加主场加成
+const HOME_BONUS = 75;        // 东道主（美/加/墨）的主场 Elo 加成
+const BASE_GOALS = 1.38;      // 双方实力相当时单队预期进球
+const MAX_GOALS = 8;          // 比分矩阵计算到 8 球
+const FIFA_SCALE = 1000 / 850; // FIFA 积分差 → Elo 当量
+const MARKET_B = 121;          // ln(隐含夺冠概率) → Elo 当量
+const MARKET_TOP = 2190;       // 市场头号热门锚定的 Elo 当量
+const DC_RHO = -0.13;          // Dixon-Coles 低比分相关性参数（负值提升 0:0 / 1:1 概率）
+
+const MODEL_INFO = {
+  elo: { name: 'Elo 模型', short: 'Elo' },
+  fifa: { name: 'FIFA 排名模型', short: 'FIFA' },
+  market: { name: '市场赔率模型', short: '赔率' },
+  ensemble: { name: '集成模型', short: '集成' },
+};
+const DEFAULT_WEIGHTS = { elo: 1, fifa: 1, market: 1 };
+
+function clamp(x, lo, hi) { return Math.min(hi, Math.max(lo, x)); }
+
+// 美式赔率 → 隐含夺冠概率（未去除抽水，只用于相对比较）
+function impliedProb(odds) { return 100 / (odds + 100); }
+
+// 把夺冠赔率折算成 Elo 当量（以全场最热门球队为锚点）
+let _marketCache = null;
+function marketElo(team) {
+  if (!_marketCache) {
+    const pMax = Math.max(...Object.values(TEAMS).map((t) => impliedProb(t.odds)));
+    _marketCache = {};
+    for (const t of Object.values(TEAMS)) {
+      _marketCache[t.code] = MARKET_TOP + MARKET_B * Math.log(impliedProb(t.odds) / pMax);
+    }
+  }
+  return _marketCache[team.code];
+}
+
+// 单一模型给出的 Elo 当量分差（A 相对 B）
+function modelDiff(modelId, A, B, useHome) {
+  const host = (t) => (useHome && t.host ? HOME_BONUS : 0);
+  switch (modelId) {
+    case 'elo':
+      return (A.elo + host(A)) - (B.elo + host(B));
+    case 'fifa':
+      return (A.fifa - B.fifa) * FIFA_SCALE + host(A) - host(B);
+    case 'market':
+      return marketElo(A) - marketElo(B);
+    default:
+      throw new Error('未知模型: ' + modelId);
+  }
+}
+
+function ensembleDiff(A, B, useHome, weights) {
+  const w = weights || DEFAULT_WEIGHTS;
+  const total = w.elo + w.fifa + w.market || 1;
+  return (
+    w.elo * modelDiff('elo', A, B, useHome) +
+    w.fifa * modelDiff('fifa', A, B, useHome) +
+    w.market * modelDiff('market', A, B, useHome)
+  ) / total;
+}
+
+// cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...}, dc: true }
+// 实际赛果产生的动态修正 ADJ（见 results.js）叠加在所有模型上
+function strengthDiff(A, B, cfg = {}) {
+  const { model = 'ensemble', useHome = true, weights } = cfg;
+  const base = model === 'ensemble'
+    ? ensembleDiff(A, B, useHome, weights)
+    : modelDiff(model, A, B, useHome);
+  const adj = (typeof ADJ !== 'undefined')
+    ? (ADJ[A.code] || 0) - (ADJ[B.code] || 0)
+    : 0;
+  return base + adj;
+}
+
+// Elo 当量分差 → 双方预期进球数
+function matchLambdas(A, B, cfg = {}) {
+  const d = strengthDiff(A, B, cfg);
+  return [
+    clamp(BASE_GOALS * Math.pow(10, d / 1000), 0.15, 4.8),
+    clamp(BASE_GOALS * Math.pow(10, -d / 1000), 0.15, 4.8),
+  ];
+}
+
+function poissonPmf(lambda, k) {
+  let p = Math.exp(-lambda);
+  for (let i = 1; i <= k; i++) p *= lambda / i;
+  return p;
+}
+
+// 比分概率矩阵 matrix[a][b] = P(比分为 a:b)，截断后归一化
+// dc=true 时做 Dixon-Coles 修正：独立泊松会低估 0:0/1:1、高估 1:0/0:1，
+// 用 τ 系数校正低比分区域后再归一化
+function scoreMatrix(lamA, lamB, dc = true) {
+  const pa = [], pb = [];
+  for (let k = 0; k <= MAX_GOALS; k++) {
+    pa.push(poissonPmf(lamA, k));
+    pb.push(poissonPmf(lamB, k));
+  }
+  const m = [];
+  for (let a = 0; a <= MAX_GOALS; a++) {
+    m.push([]);
+    for (let b = 0; b <= MAX_GOALS; b++) m[a].push(pa[a] * pb[b]);
+  }
+  if (dc) {
+    m[0][0] *= 1 - lamA * lamB * DC_RHO;
+    m[0][1] *= 1 + lamA * DC_RHO;
+    m[1][0] *= 1 + lamB * DC_RHO;
+    m[1][1] *= 1 - DC_RHO;
+  }
+  let total = 0;
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) total += m[a][b];
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) m[a][b] /= total;
+  return m;
+}
+
+// 胜/平/负概率
+function outcomeProbs(matrix) {
+  let win = 0, draw = 0, loss = 0;
+  for (let a = 0; a <= MAX_GOALS; a++) {
+    for (let b = 0; b <= MAX_GOALS; b++) {
+      if (a > b) win += matrix[a][b];
+      else if (a === b) draw += matrix[a][b];
+      else loss += matrix[a][b];
+    }
+  }
+  return { win, draw, loss };
+}
+
+// 按概率排序的比分列表
+function rankedScores(matrix, topN = 6) {
+  const list = [];
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) list.push({ a, b, p: matrix[a][b] });
+  list.sort((x, y) => y.p - x.p);
+  return list.slice(0, topN);
+}
+
+// 点球大战中 A 队获胜概率：接近五五开，按实力差小幅修正
+function penaltyWinProb(A, B, cfg = {}) {
+  return clamp(0.5 + strengthDiff(A, B, cfg) / 4000, 0.35, 0.65);
+}
+
+// 完整对阵预测（小组赛或淘汰赛）
+function predictMatch(A, B, cfg = {}) {
+  const dc = cfg.dc !== false;
+  const [lamA, lamB] = matchLambdas(A, B, cfg);
+  const matrix = scoreMatrix(lamA, lamB, dc);
+  const probs = outcomeProbs(matrix);
+  const top = rankedScores(matrix);
+  const best = top[0];
+  const result = { lamA, lamB, matrix, probs, top, best };
+
+  if (cfg.knockout) {
+    // 加时赛 30 分钟按正赛强度的 1/3 计算（进球少，不做 DC 修正），仍平则点球
+    const etMatrix = scoreMatrix(lamA / 3, lamB / 3, false);
+    const et = outcomeProbs(etMatrix);
+    const pPen = penaltyWinProb(A, B, cfg);
+    result.advanceA = probs.win + probs.draw * (et.win + et.draw * pPen);
+    result.advanceB = 1 - result.advanceA;
+  }
+  return result;
+}
+
+// ---------- 随机模拟（蒙特卡洛） ----------
+
+function samplePoisson(lambda) {
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+// 比分分布缓存：同一次模拟里相同对阵直接复用累积分布，
+// 抽样时从含 Dixon-Coles 修正的完整比分矩阵中取样
+function matchDist(A, B, cfg) {
+  const key = A.code + '|' + B.code;
+  if (cfg.cache && cfg.cache.has(key)) return cfg.cache.get(key);
+  const [lamA, lamB] = matchLambdas(A, B, cfg);
+  const m = scoreMatrix(lamA, lamB, cfg.dc !== false);
+  const cum = [];
+  let acc = 0;
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) { acc += m[a][b]; cum.push(acc); }
+  const dist = { cum, lamA, lamB };
+  if (cfg.cache) cfg.cache.set(key, dist);
+  return dist;
+}
+
+function sampleScore(A, B, cfg) {
+  const { cum } = matchDist(A, B, cfg);
+  const r = Math.random();
+  let i = 0;
+  while (i < cum.length - 1 && cum[i] < r) i++;
+  return [Math.floor(i / (MAX_GOALS + 1)), i % (MAX_GOALS + 1)];
+}
+
+// 淘汰赛单场随机出胜者
+function sampleKnockoutWinner(codeA, codeB, cfg) {
+  const A = TEAMS[codeA], B = TEAMS[codeB];
+  const [ga, gb] = sampleScore(A, B, cfg);
+  if (ga !== gb) return ga > gb ? codeA : codeB;
+  const { lamA, lamB } = matchDist(A, B, cfg);
+  const ea = samplePoisson(lamA / 3), eb = samplePoisson(lamB / 3);
+  if (ea !== eb) return ea > eb ? codeA : codeB;
+  return Math.random() < penaltyWinProb(A, B, cfg) ? codeA : codeB;
+}
+
+// 模拟一个小组的 6 场比赛，返回排序后的积分榜
+// 已录入真实比分的场次（results.js）直接采用实际结果
+function simulateGroup(groupCodes, cfg) {
+  const table = {};
+  for (const c of groupCodes) table[c] = { code: c, pts: 0, gf: 0, ga: 0 };
+  for (let i = 0; i < groupCodes.length; i++) {
+    for (let j = i + 1; j < groupCodes.length; j++) {
+      const a = groupCodes[i], b = groupCodes[j];
+      const real = (typeof getActualResult === 'function') ? getActualResult(a, b) : null;
+      const [ga, gb] = real || sampleScore(TEAMS[a], TEAMS[b], cfg);
+      table[a].gf += ga; table[a].ga += gb;
+      table[b].gf += gb; table[b].ga += ga;
+      if (ga > gb) table[a].pts += 3;
+      else if (gb > ga) table[b].pts += 3;
+      else { table[a].pts += 1; table[b].pts += 1; }
+    }
+  }
+  return Object.values(table).sort((x, y) =>
+    y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || Math.random() - 0.5);
+}
+
+// 将 8 支成绩最好的小组第三分配到对阵模板的限定槽位（回溯匹配）
+function assignThirds(thirds) {
+  const slots = R32_TEMPLATE.filter((m) => m.away.startsWith('3:'))
+    .map((m) => ({ id: m.id, allowed: m.away.slice(2) }));
+  const assign = {};
+  const used = new Set();
+  function backtrack(i) {
+    if (i === slots.length) return true;
+    const slot = slots[i];
+    for (const t of thirds) {
+      if (used.has(t.code)) continue;
+      if (!slot.allowed.includes(t.group)) continue;
+      used.add(t.code);
+      assign[slot.id] = t.code;
+      if (backtrack(i + 1)) return true;
+      used.delete(t.code);
+      delete assign[slot.id];
+    }
+    return false;
+  }
+  if (!backtrack(0)) {
+    // 极少数组合不满足限定时退化为按顺序分配
+    const remaining = thirds.filter((t) => !used.has(t.code));
+    for (const slot of slots) {
+      if (!assign[slot.id]) assign[slot.id] = remaining.shift().code;
+    }
+  }
+  return assign; // matchId -> teamCode
+}
+
+// 完整模拟一届世界杯，返回每队止步的轮次
+// 轮次编码：0=小组出局 1=进32强 2=进16强 3=进8强 4=进4强 5=进决赛 6=夺冠
+function simulateTournament(cfg) {
+  const reached = {};
+  for (const c of Object.keys(TEAMS)) reached[c] = 0;
+
+  const winners = {}, runners = {}, thirds = [];
+  for (const g of GROUP_NAMES) {
+    const table = simulateGroup(GROUPS[g], cfg);
+    winners[g] = table[0].code;
+    runners[g] = table[1].code;
+    thirds.push({ ...table[2], group: g });
+    reached[table[0].code] = 1;
+    reached[table[1].code] = 1;
+  }
+  thirds.sort((x, y) =>
+    y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || Math.random() - 0.5);
+  const bestThirds = thirds.slice(0, 8);
+  for (const t of bestThirds) reached[t.code] = 1;
+  const thirdAssign = assignThirds(bestThirds);
+
+  function resolveSlot(slot, matchId) {
+    if (slot.startsWith('3:')) return thirdAssign[matchId];
+    const pos = slot[0], g = slot[1];
+    return pos === '1' ? winners[g] : runners[g];
+  }
+
+  // 32 强
+  const matchWinner = {};
+  for (const m of R32_TEMPLATE) {
+    const a = resolveSlot(m.home, m.id), b = resolveSlot(m.away, m.id);
+    const w = sampleKnockoutWinner(a, b, cfg);
+    matchWinner[m.id] = w;
+    reached[w] = 2;
+  }
+  // 16 强 → 8 强 → 4 强 → 决赛
+  let prevIds = [];
+  R16_TEMPLATE.forEach((pair, idx) => {
+    const id = 89 + idx;
+    const w = sampleKnockoutWinner(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
+    matchWinner[id] = w;
+    reached[w] = 3;
+    prevIds.push(id);
+  });
+  let round = 4;
+  while (prevIds.length > 1) {
+    const nextIds = [];
+    for (let i = 0; i < prevIds.length; i += 2) {
+      const newId = Math.max(...Object.keys(matchWinner).map(Number)) + 1;
+      const w = sampleKnockoutWinner(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
+      matchWinner[newId] = w;
+      reached[w] = round;
+      nextIds.push(newId);
+    }
+    prevIds = nextIds;
+    round++;
+  }
+  return reached;
+}
+
+// 跑 N 次完整模拟，统计各队走到每个阶段的概率
+function monteCarlo(iterations, cfg) {
+  cfg = { ...cfg, cache: new Map() };
+  const stats = {};
+  for (const c of Object.keys(TEAMS)) stats[c] = [0, 0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < iterations; i++) {
+    const reached = simulateTournament(cfg);
+    for (const [c, r] of Object.entries(reached)) {
+      for (let s = 1; s <= r; s++) stats[c][s]++;
+    }
+  }
+  const out = {};
+  for (const [c, arr] of Object.entries(stats)) {
+    out[c] = arr.map((n) => n / iterations);
+  }
+  return out; // code -> [_, P出线, P16强, P8强, P4强, P决赛, P夺冠]
+}
+
+// ===== js/app.js =====
+// 页面交互逻辑
+const $ = (sel) => document.querySelector(sel);
+const pct = (p, digits = 1) => (p * 100).toFixed(digits) + '%';
+const teamLabel = (t) => `${t.flag} ${t.zh}`;
+
+// ---------- Tab 切换 ----------
+document.querySelectorAll('.tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('#tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- 集成权重 ----------
+function readWeights() {
+  return {
+    elo: parseInt($('#wElo').value, 10),
+    fifa: parseInt($('#wFifa').value, 10),
+    market: parseInt($('#wMarket').value, 10),
+  };
+}
+for (const [id, valId] of [['wElo', 'wEloVal'], ['wFifa', 'wFifaVal'], ['wMarket', 'wMarketVal']]) {
+  $('#' + id).addEventListener('input', () => {
+    $('#' + valId).textContent = $('#' + id).value;
+    renderMatch();
+  });
+}
+
+// ---------- 初始化下拉框 ----------
+function initSelectors() {
+  const sorted = Object.values(TEAMS).sort((a, b) =>
+    a.group === b.group ? b.elo - a.elo : a.group.localeCompare(b.group));
+  for (const id of ['teamA', 'teamB']) {
+    const sel = $('#' + id);
+    let currentGroup = '';
+    let og = null;
+    for (const t of sorted) {
+      if (t.group !== currentGroup) {
+        currentGroup = t.group;
+        og = document.createElement('optgroup');
+        og.label = `${t.group} 组`;
+        sel.appendChild(og);
+      }
+      const opt = document.createElement('option');
+      opt.value = t.code;
+      opt.textContent = `${t.flag} ${t.zh} (${t.en})`;
+      og.appendChild(opt);
+    }
+  }
+  $('#teamA').value = 'USA';
+  $('#teamB').value = 'MEX';
+
+  const gSel = $('#groupSelect');
+  for (const g of GROUP_NAMES) {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = `${g} 组：` + GROUPS[g].map((c) => TEAMS[c].zh).join(' / ');
+    gSel.appendChild(opt);
+  }
+}
+
+// ---------- 对阵预测 ----------
+function renderMatch() {
+  const A = TEAMS[$('#teamA').value];
+  const B = TEAMS[$('#teamB').value];
+  const knockout = document.querySelector('input[name="stage"]:checked').value === 'knockout';
+  const useHome = $('#homeAdv').checked;
+  const dc = $('#dcToggle').checked;
+  const weights = readWeights();
+
+  if (A.code === B.code) {
+    $('#matchResult').innerHTML = '<div class="card"><p>请选择两支不同的球队 😅</p></div>';
+    return;
+  }
+
+  // 四个模型分别预测
+  const results = {};
+  for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights });
+  }
+  const r = results.ensemble; // 主展示用集成结果
+  const { probs, top, best } = r;
+
+  let advanceHtml = '';
+  if (knockout) {
+    advanceHtml = `<div class="advance-note">含加时与点球的晋级概率（集成）：${teamLabel(A)} ${pct(r.advanceA)} ｜ ${teamLabel(B)} ${pct(r.advanceB)}</div>`;
+  }
+
+  // 模型对比表
+  const cmpRows = ['elo', 'fifa', 'market', 'ensemble'].map((m) => {
+    const x = results[m];
+    return `
+      <tr class="${m === 'ensemble' ? 'qualified' : ''}">
+        <td class="team-cell">${MODEL_INFO[m].name}${m === 'ensemble' ? ' ⭐' : ''}</td>
+        <td class="pct"><strong>${x.best.a} : ${x.best.b}</strong></td>
+        <td class="pct">${x.lamA.toFixed(2)} : ${x.lamB.toFixed(2)}</td>
+        <td class="pct">${pct(x.probs.win)}</td>
+        <td class="pct">${pct(x.probs.draw)}</td>
+        <td class="pct">${pct(x.probs.loss)}</td>
+        ${knockout ? `<td class="pct">${pct(x.advanceA)}</td>` : ''}
+      </tr>`;
+  }).join('');
+
+  const chips = top.map((s, i) =>
+    `<div class="score-chip${i === 0 ? ' best' : ''}">
+       <div class="s">${s.a} : ${s.b}</div>
+       <div class="p">${pct(s.p)}</div>
+     </div>`).join('');
+
+  // 热力图（显示到 5 球，足够覆盖绝大多数概率）
+  const SHOW = 5;
+  let heat = '<table class="heatmap"><tr><th></th>';
+  for (let b = 0; b <= SHOW; b++) heat += `<th>${B.flag}${b}</th>`;
+  heat += '</tr>';
+  const maxP = r.matrix.flat().reduce((m, v) => Math.max(m, v), 0);
+  for (let a = 0; a <= SHOW; a++) {
+    heat += `<tr><th>${A.flag}${a}</th>`;
+    for (let b = 0; b <= SHOW; b++) {
+      const p = r.matrix[a][b];
+      const alpha = (p / maxP) * 0.85;
+      heat += `<td style="background: rgba(56,189,248,${alpha.toFixed(3)})">${(p * 100).toFixed(1)}</td>`;
+    }
+    heat += '</tr>';
+  }
+  heat += '</table>';
+
+  $('#matchResult').innerHTML = `
+    <div class="card score-banner">
+      <div class="teams-line">
+        <div class="team"><span class="flag">${A.flag}</span>${A.zh}<span class="en">${A.en}</span></div>
+        <div class="big-score">${best.a} : ${best.b}</div>
+        <div class="team"><span class="flag">${B.flag}</span>${B.zh}<span class="en">${B.en}</span></div>
+      </div>
+      <div class="score-note">集成模型最可能比分（概率 ${pct(best.p)}）· 预期进球 ${r.lamA.toFixed(2)} : ${r.lamB.toFixed(2)}</div>
+      ${advanceHtml}
+    </div>
+    <div class="card">
+      <div class="section-title">四个模型对比（⭐ 集成 = 三模型按当前权重 Elo:${weights.elo} / FIFA:${weights.fifa} / 赔率:${weights.market} 加权）</div>
+      <table class="standings">
+        <tr><th style="text-align:left">模型</th><th>最可能比分</th><th>预期进球</th><th>${A.zh}胜</th><th>平</th><th>${B.zh}胜</th>${knockout ? '<th>晋级率</th>' : ''}</tr>
+        ${cmpRows}
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">90 分钟胜平负概率（集成）</div>
+      <div class="prob-bar">
+        <div class="prob-win" style="flex:${probs.win}">${A.zh}胜 ${pct(probs.win)}</div>
+        <div class="prob-draw" style="flex:${probs.draw}">平 ${pct(probs.draw)}</div>
+        <div class="prob-loss" style="flex:${probs.loss}">${B.zh}胜 ${pct(probs.loss)}</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">最可能的 6 个比分（集成）</div>
+      <div class="score-list">${chips}</div>
+    </div>
+    <div class="card">
+      <div class="section-title">比分概率热力图（%，行 = ${A.zh}进球，列 = ${B.zh}进球）</div>
+      ${heat}
+    </div>`;
+}
+
+// ---------- 小组赛模拟 ----------
+function renderGroup() {
+  const g = $('#groupSelect').value;
+  const codes = GROUPS[g];
+  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights(), cache: new Map() };
+  const RUNS = 5000;
+
+  // 单场最可能比分（已录入真实赛果的场次显示实际比分）
+  const fixtures = [];
+  for (let i = 0; i < codes.length; i++) {
+    for (let j = i + 1; j < codes.length; j++) {
+      const A = TEAMS[codes[i]], B = TEAMS[codes[j]];
+      const real = getActualResult(A.code, B.code);
+      if (real) {
+        fixtures.push(`
+          <div class="fixture played">
+            <span>${teamLabel(A)}</span>
+            <span class="fs">${real[0]} : ${real[1]} <em>已赛</em></span>
+            <span>${teamLabel(B)}</span>
+          </div>`);
+      } else {
+        const r = predictMatch(A, B, cfg);
+        fixtures.push(`
+          <div class="fixture">
+            <span>${teamLabel(A)}</span>
+            <span class="fs">${r.best.a} : ${r.best.b}</span>
+            <span>${teamLabel(B)}</span>
+          </div>`);
+      }
+    }
+  }
+
+  // 蒙特卡洛：出线概率与平均积分
+  const agg = {};
+  for (const c of codes) agg[c] = { pts: 0, first: 0, second: 0 };
+  for (let i = 0; i < RUNS; i++) {
+    const table = simulateGroup(codes, cfg);
+    table.forEach((row, idx) => {
+      agg[row.code].pts += row.pts;
+      if (idx === 0) agg[row.code].first++;
+      if (idx === 1) agg[row.code].second++;
+    });
+  }
+  const rows = codes
+    .map((c) => ({
+      team: TEAMS[c],
+      avgPts: agg[c].pts / RUNS,
+      pFirst: agg[c].first / RUNS,
+      pSecond: agg[c].second / RUNS,
+      pTop2: (agg[c].first + agg[c].second) / RUNS,
+    }))
+    .sort((a, b) => b.pTop2 - a.pTop2)
+    .map((r, idx) => `
+      <tr class="${idx < 2 ? 'qualified' : ''}">
+        <td>${idx + 1}</td>
+        <td class="team-cell">${teamLabel(r.team)}</td>
+        <td class="pct">${r.avgPts.toFixed(2)}</td>
+        <td class="pct">${pct(r.pFirst)}</td>
+        <td class="pct">${pct(r.pSecond)}</td>
+        <td class="bar-cell">
+          <div class="mini-bar"><div style="width:${(r.pTop2 * 100).toFixed(1)}%"></div></div>
+        </td>
+        <td class="pct">${pct(r.pTop2)}</td>
+      </tr>`).join('');
+
+  $('#groupResult').innerHTML = `
+    <div class="card">
+      <div class="section-title">${g} 组单场最可能比分（${MODEL_INFO[cfg.model].name}）</div>
+      <div class="fixtures">${fixtures.join('')}</div>
+    </div>
+    <div class="card">
+      <div class="section-title">${g} 组出线形势（${MODEL_INFO[cfg.model].name} · 模拟 ${RUNS.toLocaleString()} 次，前二直接出线，小组第三仍有机会以最佳第三晋级）</div>
+      <table class="standings">
+        <tr><th>#</th><th style="text-align:left">球队</th><th>平均积分</th><th>第一</th><th>第二</th><th colspan="2">前二出线率</th></tr>
+        ${rows}
+      </table>
+    </div>`;
+}
+
+// ---------- 全程模拟 ----------
+function renderTournament() {
+  const runs = parseInt($('#mcRuns').value, 10);
+  const cfg = { model: $('#mcModel').value, useHome: true, weights: readWeights() };
+  const btn = $('#mcBtn');
+  btn.disabled = true;
+  $('#mcStatus').textContent = '模拟中……';
+  $('#mcResult').innerHTML = '';
+
+  // 让浏览器先渲染状态再开始计算
+  setTimeout(() => {
+    const t0 = performance.now();
+    const stats = monteCarlo(runs, cfg);
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+
+    const rows = Object.entries(stats)
+      .map(([c, s]) => ({ team: TEAMS[c], s }))
+      .sort((a, b) => b.s[6] - a.s[6] || b.s[5] - a.s[5] || b.s[4] - a.s[4])
+      .map((r, idx) => `
+        <tr class="${idx < 4 ? 'qualified' : ''}">
+          <td>${idx + 1}</td>
+          <td class="team-cell">${teamLabel(r.team)}</td>
+          <td class="pct">${pct(r.s[1], 0)}</td>
+          <td class="pct">${pct(r.s[2], 0)}</td>
+          <td class="pct">${pct(r.s[3], 0)}</td>
+          <td class="pct">${pct(r.s[4], 1)}</td>
+          <td class="pct">${pct(r.s[5], 1)}</td>
+          <td class="bar-cell">
+            <div class="mini-bar"><div style="width:${Math.min(100, r.s[6] * 100 / 0.3).toFixed(1)}%"></div></div>
+          </td>
+          <td class="pct"><strong>${pct(r.s[6], 1)}</strong></td>
+        </tr>`).join('');
+
+    $('#mcResult').innerHTML = `
+      <div class="card">
+        <div class="section-title">48 队全程概率（${MODEL_INFO[cfg.model].name} · ${runs.toLocaleString()} 次完整模拟，耗时 ${elapsed}s，按夺冠概率排序）</div>
+        <table class="standings">
+          <tr><th>#</th><th style="text-align:left">球队</th><th>小组出线</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th colspan="2">夺冠</th></tr>
+          ${rows}
+        </table>
+      </div>`;
+    $('#mcStatus').textContent = '';
+    btn.disabled = false;
+  }, 50);
+}
+
+// ---------- 数据源一览 ----------
+function renderDataTable() {
+  const rows = Object.values(TEAMS)
+    .map((t) => {
+      // 三源等权折算的综合 Elo 当量（含赛果动态修正，仅用于排序参考）
+      const mElo = (() => {
+        const pMax = Math.max(...Object.values(TEAMS).map((x) => 100 / (x.odds + 100)));
+        const p = 100 / (t.odds + 100);
+        return 2190 + 121 * Math.log(p / pMax);
+      })();
+      const fifaEq = 1500 + (t.fifa - 1500) * (1000 / 850);
+      const adj = ADJ[t.code] || 0;
+      const composite = (t.elo + fifaEq + mElo) / 3 + adj;
+      return { t, adj, composite };
+    })
+    .sort((a, b) => b.composite - a.composite)
+    .map(({ t, adj, composite }, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td class="team-cell">${teamLabel(t)} <span class="dim">${t.group}组${t.host ? ' · 东道主' : ''}</span></td>
+        <td class="pct">${t.elo}</td>
+        <td class="pct">${t.fifa}</td>
+        <td class="pct">+${t.odds.toLocaleString()}</td>
+        <td class="pct">${pct(100 / (t.odds + 100) / 100, 2)}</td>
+        <td class="pct">${adj === 0 ? '—' : (adj > 0 ? '<span class="up">+' : '<span class="down">') + adj.toFixed(0) + '</span>'}</td>
+        <td class="pct"><strong>${composite.toFixed(0)}</strong></td>
+      </tr>`).join('');
+
+  $('#dataTable').innerHTML = `
+    <table class="standings">
+      <tr><th>#</th><th style="text-align:left">球队</th><th>Elo 分</th><th>FIFA 积分</th><th>夺冠赔率</th><th>隐含夺冠率</th><th>赛果修正</th><th>综合实力</th></tr>
+      ${rows}
+    </table>`;
+}
+
+// ---------- 实际赛果录入 ----------
+function groupFixtures(g) {
+  const codes = GROUPS[g];
+  const list = [];
+  for (let i = 0; i < codes.length; i++)
+    for (let j = i + 1; j < codes.length; j++) list.push([codes[i], codes[j]]);
+  return list;
+}
+
+function refreshFixtureSelect() {
+  const g = $('#resGroup').value;
+  const sel = $('#resFixture');
+  sel.innerHTML = '';
+  for (const [a, b] of groupFixtures(g)) {
+    const opt = document.createElement('option');
+    opt.value = a + '|' + b;
+    const real = getActualResult(a, b);
+    opt.textContent = `${TEAMS[a].zh} vs ${TEAMS[b].zh}` + (real ? `（已录 ${real[0]}:${real[1]}）` : '');
+    sel.appendChild(opt);
+  }
+}
+
+function renderResultsTab() {
+  refreshFixtureSelect();
+
+  if (RESULTS.length === 0) {
+    $('#resList').innerHTML = '<p class="hint">尚未录入任何赛果。</p>';
+    $('#adjList').innerHTML = '<p class="hint">录入赛果后这里会显示各队实力修正。</p>';
+    return;
+  }
+  $('#resList').innerHTML = RESULTS.map((r, i) => `
+    <div class="fixture played">
+      <span>${teamLabel(TEAMS[r.a])}</span>
+      <span class="fs">${r.ga} : ${r.gb}</span>
+      <span>${teamLabel(TEAMS[r.b])}</span>
+      <button class="del" data-i="${i}">✕</button>
+    </div>`).join('') +
+    '<div style="margin-top:10px"><button id="resClear" class="del-all">清空全部赛果</button></div>';
+
+  $('#resList').querySelectorAll('.del').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      removeResult(parseInt(btn.dataset.i, 10));
+      refreshAll();
+    });
+  });
+  const clearBtn = $('#resClear');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    clearResults();
+    refreshAll();
+  });
+
+  const adjRows = Object.entries(ADJ)
+    .filter(([, v]) => Math.abs(v) >= 0.5)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, v]) => `
+      <tr>
+        <td class="team-cell">${teamLabel(TEAMS[c])}</td>
+        <td class="pct">${v > 0 ? '<span class="up">+' + v.toFixed(1) : '<span class="down">' + v.toFixed(1)}</span></td>
+      </tr>`).join('');
+  $('#adjList').innerHTML = adjRows
+    ? `<table class="standings"><tr><th style="text-align:left">球队</th><th>Elo 当量修正</th></tr>${adjRows}</table>`
+    : '<p class="hint">当前赛果与模型预期基本一致，没有产生明显修正。</p>';
+}
+
+function initResultsTab() {
+  const gSel = $('#resGroup');
+  for (const g of GROUP_NAMES) {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g + ' 组';
+    gSel.appendChild(opt);
+  }
+  gSel.addEventListener('change', refreshFixtureSelect);
+  $('#resAdd').addEventListener('click', () => {
+    const [a, b] = $('#resFixture').value.split('|');
+    const ga = parseInt($('#resGa').value, 10);
+    const gb = parseInt($('#resGb').value, 10);
+    if (Number.isNaN(ga) || Number.isNaN(gb) || ga < 0 || gb < 0 || ga > 20 || gb > 20) return;
+    addResult(a, b, ga, gb);
+    refreshAll();
+  });
+}
+
+// 赛果变化后刷新所有视图
+function refreshAll() {
+  renderResultsTab();
+  renderDataTable();
+  renderMatch();
+}
+
+// ---------- 绑定 ----------
+initSelectors();
+initResultsTab();
+recomputeAdjustments();
+$('#predictBtn').addEventListener('click', renderMatch);
+$('#groupBtn').addEventListener('click', renderGroup);
+$('#mcBtn').addEventListener('click', renderTournament);
+renderMatch();
+renderDataTable();
+renderResultsTab();
+
+  </script>
 </body>
 </html>

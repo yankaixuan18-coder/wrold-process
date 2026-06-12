@@ -51,12 +51,18 @@ python3 -m http.server 8000
 ## 文件结构
 
 ```
-index.html      页面入口
-css/style.css   样式
-js/data.js      48 强数据（Elo / FIFA 积分 / 夺冠赔率 / 分组 / 对阵模板）
-js/results.js   实际赛果存储与 Elo 动态修正
-js/model.js     多模型预测引擎（3 模型 + 集成 → 泊松 + Dixon-Coles → 蒙特卡洛）
-js/app.js       页面交互
+index.html            页面入口（自包含单文件，由 build.js 生成，样式脚本全部内联，
+                      双击 / 在线预览 / GitHub Pages 均可直接渲染）
+index.template.html   页面模板（源文件）
+build.js              构建脚本：node build.js 重新生成 index.html
+css/style.css         样式（源文件）
+js/data.js            48 强数据（Elo / FIFA 积分 / 夺冠赔率 / 分组 / 对阵模板）
+js/results.js         实际赛果存储与 Elo 动态修正
+js/model.js           多模型预测引擎（3 模型 + 集成 → 泊松 + Dixon-Coles → 蒙特卡洛）
+js/app.js             页面交互
 ```
+
+> 修改 `css/` 或 `js/` 下的源文件后，运行 `node build.js` 重新生成 `index.html`；
+> 若不方便运行 Node，也可以直接编辑 `index.html` 里对应的内联代码段。
 
 > ⚠️ 预测结果由统计模型生成，仅供娱乐与参考，请勿用于赌博。足球是圆的！
