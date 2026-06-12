@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 美加墨世界杯比分预测</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>⚽ 2026 美加墨世界杯比分预测</h1>
+    <p class="subtitle">Elo 实力评分 + 泊松分布模型 · 48 强真实分组 · 仅供娱乐参考</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="match">对阵预测</button>
+    <button class="tab" data-tab="group">小组赛模拟</button>
+    <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="about">关于模型</button>
+  </nav>
+
+  <!-- 对阵预测 -->
+  <section id="tab-match" class="panel active">
+    <div class="card">
+      <div class="selectors">
+        <div class="team-select">
+          <label>主队 / 队伍 A</label>
+          <select id="teamA"></select>
+        </div>
+        <div class="vs">VS</div>
+        <div class="team-select">
+          <label>客队 / 队伍 B</label>
+          <select id="teamB"></select>
+        </div>
+      </div>
+      <div class="options">
+        <label class="opt"><input type="radio" name="stage" value="group" checked> 小组赛（可打平）</label>
+        <label class="opt"><input type="radio" name="stage" value="knockout"> 淘汰赛（加时 + 点球）</label>
+        <label class="opt"><input type="checkbox" id="homeAdv" checked> 东道主主场加成（美/加/墨）</label>
+        <button id="predictBtn" class="primary">预测比分</button>
+      </div>
+    </div>
+    <div id="matchResult"></div>
+  </section>
+
+  <!-- 小组赛模拟 -->
+  <section id="tab-group" class="panel">
+    <div class="card">
+      <div class="options">
+        <label>选择小组：</label>
+        <select id="groupSelect"></select>
+        <button id="groupBtn" class="primary">模拟该小组（5000 次）</button>
+      </div>
+    </div>
+    <div id="groupResult"></div>
+  </section>
+
+  <!-- 全程模拟 -->
+  <section id="tab-tournament" class="panel">
+    <div class="card">
+      <div class="options">
+        <label>模拟次数：</label>
+        <select id="mcRuns">
+          <option value="2000">2,000（快）</option>
+          <option value="5000" selected>5,000（推荐）</option>
+          <option value="10000">10,000（慢但更准）</option>
+        </select>
+        <button id="mcBtn" class="primary">模拟整届世界杯</button>
+        <span id="mcStatus" class="status"></span>
+      </div>
+    </div>
+    <div id="mcResult"></div>
+  </section>
+
+  <!-- 关于 -->
+  <section id="tab-about" class="panel">
+    <div class="card about">
+      <h2>模型说明</h2>
+      <ul>
+        <li><strong>实力评分：</strong>每支球队有一个 Elo 评分（参考 eloratings.net 与 FIFA 排名估算），东道主美国、加拿大、墨西哥默认 +75 主场加成。</li>
+        <li><strong>预期进球：</strong>由两队 Elo 差换算双方预期进球数（实力相当时各约 1.38 球）。</li>
+        <li><strong>比分概率：</strong>双方进球数服从泊松分布，独立相乘得到每个具体比分（0:0 ~ 8:8）的概率。</li>
+        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时赛，再平则点球大战（按实力差微调的接近五五开）。</li>
+        <li><strong>全程模拟：</strong>蒙特卡洛方法把 104 场比赛全部随机模拟成千上万次，统计每队小组出线、进 16 强 / 8 强 / 4 强 / 决赛、夺冠的频率。32 强对阵采用官方公布的对阵模板（M73–M88），小组第三的归属按官方限定槽位匹配。</li>
+        <li><strong>数据：</strong>小组分组为 2025 年 12 月 5 日抽签 + 2026 年 3 月附加赛后的最终结果（波黑、瑞典、土耳其、捷克及刚果（金）、伊拉克通过附加赛晋级）。</li>
+      </ul>
+      <p class="disclaimer">⚠️ 预测结果由统计模型生成，仅供娱乐与参考，请勿用于赌博。足球是圆的！</p>
+    </div>
+  </section>
+
+  <footer>2026 FIFA World Cup · United States / Canada / Mexico · 48 队 · 104 场</footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
