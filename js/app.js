@@ -67,6 +67,7 @@ function renderMatch() {
   const B = TEAMS[$('#teamB').value];
   const knockout = document.querySelector('input[name="stage"]:checked').value === 'knockout';
   const useHome = $('#homeAdv').checked;
+  const dc = $('#dcToggle').checked;
   const weights = readWeights();
 
   if (A.code === B.code) {
@@ -77,7 +78,7 @@ function renderMatch() {
   // 四个模型分别预测
   const results = {};
   for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
-    results[m] = predictMatch(A, B, { model: m, knockout, useHome, weights });
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights });
   }
   const r = results.ensemble; // 主展示用集成结果
   const { probs, top, best } = r;
@@ -164,21 +165,31 @@ function renderMatch() {
 function renderGroup() {
   const g = $('#groupSelect').value;
   const codes = GROUPS[g];
-  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights() };
+  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights(), cache: new Map() };
   const RUNS = 5000;
 
-  // 单场最可能比分
+  // 单场最可能比分（已录入真实赛果的场次显示实际比分）
   const fixtures = [];
   for (let i = 0; i < codes.length; i++) {
     for (let j = i + 1; j < codes.length; j++) {
       const A = TEAMS[codes[i]], B = TEAMS[codes[j]];
-      const r = predictMatch(A, B, cfg);
-      fixtures.push(`
-        <div class="fixture">
-          <span>${teamLabel(A)}</span>
-          <span class="fs">${r.best.a} : ${r.best.b}</span>
-          <span>${teamLabel(B)}</span>
-        </div>`);
+      const real = getActualResult(A.code, B.code);
+      if (real) {
+        fixtures.push(`
+          <div class="fixture played">
+            <span>${teamLabel(A)}</span>
+            <span class="fs">${real[0]} : ${real[1]} <em>已赛</em></span>
+            <span>${teamLabel(B)}</span>
+          </div>`);
+      } else {
+        const r = predictMatch(A, B, cfg);
+        fixtures.push(`
+          <div class="fixture">
+            <span>${teamLabel(A)}</span>
+            <span class="fs">${r.best.a} : ${r.best.b}</span>
+            <span>${teamLabel(B)}</span>
+          </div>`);
+      }
     }
   }
 
@@ -279,19 +290,19 @@ function renderTournament() {
 function renderDataTable() {
   const rows = Object.values(TEAMS)
     .map((t) => {
-      const w = { elo: 1, fifa: 1, market: 1 };
-      // 三源等权折算的综合 Elo 当量（以联合尺度展示，仅用于排序参考）
+      // 三源等权折算的综合 Elo 当量（含赛果动态修正，仅用于排序参考）
       const mElo = (() => {
         const pMax = Math.max(...Object.values(TEAMS).map((x) => 100 / (x.odds + 100)));
         const p = 100 / (t.odds + 100);
         return 2190 + 121 * Math.log(p / pMax);
       })();
       const fifaEq = 1500 + (t.fifa - 1500) * (1000 / 850);
-      const composite = (t.elo + fifaEq + mElo) / 3;
-      return { t, mElo, composite };
+      const adj = ADJ[t.code] || 0;
+      const composite = (t.elo + fifaEq + mElo) / 3 + adj;
+      return { t, adj, composite };
     })
     .sort((a, b) => b.composite - a.composite)
-    .map(({ t, mElo, composite }, idx) => `
+    .map(({ t, adj, composite }, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td class="team-cell">${teamLabel(t)} <span class="dim">${t.group}组${t.host ? ' · 东道主' : ''}</span></td>
@@ -299,20 +310,114 @@ function renderDataTable() {
         <td class="pct">${t.fifa}</td>
         <td class="pct">+${t.odds.toLocaleString()}</td>
         <td class="pct">${pct(100 / (t.odds + 100) / 100, 2)}</td>
+        <td class="pct">${adj === 0 ? '—' : (adj > 0 ? '<span class="up">+' : '<span class="down">') + adj.toFixed(0) + '</span>'}</td>
         <td class="pct"><strong>${composite.toFixed(0)}</strong></td>
       </tr>`).join('');
 
   $('#dataTable').innerHTML = `
     <table class="standings">
-      <tr><th>#</th><th style="text-align:left">球队</th><th>Elo 分</th><th>FIFA 积分</th><th>夺冠赔率</th><th>隐含夺冠率</th><th>综合实力</th></tr>
+      <tr><th>#</th><th style="text-align:left">球队</th><th>Elo 分</th><th>FIFA 积分</th><th>夺冠赔率</th><th>隐含夺冠率</th><th>赛果修正</th><th>综合实力</th></tr>
       ${rows}
     </table>`;
 }
 
+// ---------- 实际赛果录入 ----------
+function groupFixtures(g) {
+  const codes = GROUPS[g];
+  const list = [];
+  for (let i = 0; i < codes.length; i++)
+    for (let j = i + 1; j < codes.length; j++) list.push([codes[i], codes[j]]);
+  return list;
+}
+
+function refreshFixtureSelect() {
+  const g = $('#resGroup').value;
+  const sel = $('#resFixture');
+  sel.innerHTML = '';
+  for (const [a, b] of groupFixtures(g)) {
+    const opt = document.createElement('option');
+    opt.value = a + '|' + b;
+    const real = getActualResult(a, b);
+    opt.textContent = `${TEAMS[a].zh} vs ${TEAMS[b].zh}` + (real ? `（已录 ${real[0]}:${real[1]}）` : '');
+    sel.appendChild(opt);
+  }
+}
+
+function renderResultsTab() {
+  refreshFixtureSelect();
+
+  if (RESULTS.length === 0) {
+    $('#resList').innerHTML = '<p class="hint">尚未录入任何赛果。</p>';
+    $('#adjList').innerHTML = '<p class="hint">录入赛果后这里会显示各队实力修正。</p>';
+    return;
+  }
+  $('#resList').innerHTML = RESULTS.map((r, i) => `
+    <div class="fixture played">
+      <span>${teamLabel(TEAMS[r.a])}</span>
+      <span class="fs">${r.ga} : ${r.gb}</span>
+      <span>${teamLabel(TEAMS[r.b])}</span>
+      <button class="del" data-i="${i}">✕</button>
+    </div>`).join('') +
+    '<div style="margin-top:10px"><button id="resClear" class="del-all">清空全部赛果</button></div>';
+
+  $('#resList').querySelectorAll('.del').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      removeResult(parseInt(btn.dataset.i, 10));
+      refreshAll();
+    });
+  });
+  const clearBtn = $('#resClear');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    clearResults();
+    refreshAll();
+  });
+
+  const adjRows = Object.entries(ADJ)
+    .filter(([, v]) => Math.abs(v) >= 0.5)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, v]) => `
+      <tr>
+        <td class="team-cell">${teamLabel(TEAMS[c])}</td>
+        <td class="pct">${v > 0 ? '<span class="up">+' + v.toFixed(1) : '<span class="down">' + v.toFixed(1)}</span></td>
+      </tr>`).join('');
+  $('#adjList').innerHTML = adjRows
+    ? `<table class="standings"><tr><th style="text-align:left">球队</th><th>Elo 当量修正</th></tr>${adjRows}</table>`
+    : '<p class="hint">当前赛果与模型预期基本一致，没有产生明显修正。</p>';
+}
+
+function initResultsTab() {
+  const gSel = $('#resGroup');
+  for (const g of GROUP_NAMES) {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g + ' 组';
+    gSel.appendChild(opt);
+  }
+  gSel.addEventListener('change', refreshFixtureSelect);
+  $('#resAdd').addEventListener('click', () => {
+    const [a, b] = $('#resFixture').value.split('|');
+    const ga = parseInt($('#resGa').value, 10);
+    const gb = parseInt($('#resGb').value, 10);
+    if (Number.isNaN(ga) || Number.isNaN(gb) || ga < 0 || gb < 0 || ga > 20 || gb > 20) return;
+    addResult(a, b, ga, gb);
+    refreshAll();
+  });
+}
+
+// 赛果变化后刷新所有视图
+function refreshAll() {
+  renderResultsTab();
+  renderDataTable();
+  renderMatch();
+}
+
 // ---------- 绑定 ----------
 initSelectors();
+initResultsTab();
+recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
 $('#mcBtn').addEventListener('click', renderTournament);
 renderMatch();
 renderDataTable();
+renderResultsTab();

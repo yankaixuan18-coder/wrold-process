@@ -86,6 +86,28 @@ button.primary:disabled { filter: grayscale(0.7); cursor: wait; }
 .weights span { min-width: 14px; text-align: center; color: #38bdf8; font-weight: 700; }
 
 .dim { color: #5b6f96; font-size: 0.78rem; }
+.up { color: #4ade80; font-weight: 700; }
+.down { color: #f472b6; font-weight: 700; }
+.hint { color: #93a6c8; font-size: 0.85rem; margin-top: 10px; }
+
+.score-input {
+  width: 60px; padding: 9px 10px; text-align: center;
+  background: #0e1d3d; color: #e8eefc;
+  border: 1px solid #2c4070; border-radius: 10px;
+  font-family: inherit; font-size: 0.95rem;
+}
+
+.fixture.played { border-color: #4ade80; }
+.fixture.played .fs { color: #4ade80; }
+.fixture .fs em { font-style: normal; font-size: 0.7rem; color: #93a6c8; }
+.fixture .del {
+  background: none; border: none; color: #f472b6;
+  cursor: pointer; font-size: 0.95rem; padding: 2px 6px;
+}
+.del-all {
+  background: none; border: 1px solid #f472b6; color: #f472b6;
+  border-radius: 8px; padding: 7px 16px; cursor: pointer; font-size: 0.85rem;
+}
 
 /* 比分结果 */
 .score-banner {

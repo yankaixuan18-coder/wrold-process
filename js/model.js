@@ -12,6 +12,7 @@ const MAX_GOALS = 8;          // 比分矩阵计算到 8 球
 const FIFA_SCALE = 1000 / 850; // FIFA 积分差 → Elo 当量
 const MARKET_B = 121;          // ln(隐含夺冠概率) → Elo 当量
 const MARKET_TOP = 2190;       // 市场头号热门锚定的 Elo 当量
+const DC_RHO = -0.13;          // Dixon-Coles 低比分相关性参数（负值提升 0:0 / 1:1 概率）
 
 const MODEL_INFO = {
   elo: { name: 'Elo 模型', short: 'Elo' },
@@ -64,12 +65,17 @@ function ensembleDiff(A, B, useHome, weights) {
   ) / total;
 }
 
-// cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...} }
+// cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...}, dc: true }
+// 实际赛果产生的动态修正 ADJ（见 results.js）叠加在所有模型上
 function strengthDiff(A, B, cfg = {}) {
   const { model = 'ensemble', useHome = true, weights } = cfg;
-  return model === 'ensemble'
+  const base = model === 'ensemble'
     ? ensembleDiff(A, B, useHome, weights)
     : modelDiff(model, A, B, useHome);
+  const adj = (typeof ADJ !== 'undefined')
+    ? (ADJ[A.code] || 0) - (ADJ[B.code] || 0)
+    : 0;
+  return base + adj;
 }
 
 // Elo 当量分差 → 双方预期进球数
@@ -88,22 +94,28 @@ function poissonPmf(lambda, k) {
 }
 
 // 比分概率矩阵 matrix[a][b] = P(比分为 a:b)，截断后归一化
-function scoreMatrix(lamA, lamB) {
+// dc=true 时做 Dixon-Coles 修正：独立泊松会低估 0:0/1:1、高估 1:0/0:1，
+// 用 τ 系数校正低比分区域后再归一化
+function scoreMatrix(lamA, lamB, dc = true) {
   const pa = [], pb = [];
   for (let k = 0; k <= MAX_GOALS; k++) {
     pa.push(poissonPmf(lamA, k));
     pb.push(poissonPmf(lamB, k));
   }
   const m = [];
-  let total = 0;
   for (let a = 0; a <= MAX_GOALS; a++) {
     m.push([]);
-    for (let b = 0; b <= MAX_GOALS; b++) {
-      const p = pa[a] * pb[b];
-      m[a].push(p);
-      total += p;
-    }
+    for (let b = 0; b <= MAX_GOALS; b++) m[a].push(pa[a] * pb[b]);
   }
+  if (dc) {
+    m[0][0] *= 1 - lamA * lamB * DC_RHO;
+    m[0][1] *= 1 + lamA * DC_RHO;
+    m[1][0] *= 1 + lamB * DC_RHO;
+    m[1][1] *= 1 - DC_RHO;
+  }
+  let total = 0;
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) total += m[a][b];
   for (let a = 0; a <= MAX_GOALS; a++)
     for (let b = 0; b <= MAX_GOALS; b++) m[a][b] /= total;
   return m;
@@ -138,16 +150,17 @@ function penaltyWinProb(A, B, cfg = {}) {
 
 // 完整对阵预测（小组赛或淘汰赛）
 function predictMatch(A, B, cfg = {}) {
+  const dc = cfg.dc !== false;
   const [lamA, lamB] = matchLambdas(A, B, cfg);
-  const matrix = scoreMatrix(lamA, lamB);
+  const matrix = scoreMatrix(lamA, lamB, dc);
   const probs = outcomeProbs(matrix);
   const top = rankedScores(matrix);
   const best = top[0];
   const result = { lamA, lamB, matrix, probs, top, best };
 
   if (cfg.knockout) {
-    // 加时赛 30 分钟按正赛强度的 1/3 计算，仍平则点球
-    const etMatrix = scoreMatrix(lamA / 3, lamB / 3);
+    // 加时赛 30 分钟按正赛强度的 1/3 计算（进球少，不做 DC 修正），仍平则点球
+    const etMatrix = scoreMatrix(lamA / 3, lamB / 3, false);
     const et = outcomeProbs(etMatrix);
     const pPen = penaltyWinProb(A, B, cfg);
     result.advanceA = probs.win + probs.draw * (et.win + et.draw * pPen);
@@ -165,9 +178,28 @@ function samplePoisson(lambda) {
   return k - 1;
 }
 
-function sampleScore(A, B, cfg) {
+// 比分分布缓存：同一次模拟里相同对阵直接复用累积分布，
+// 抽样时从含 Dixon-Coles 修正的完整比分矩阵中取样
+function matchDist(A, B, cfg) {
+  const key = A.code + '|' + B.code;
+  if (cfg.cache && cfg.cache.has(key)) return cfg.cache.get(key);
   const [lamA, lamB] = matchLambdas(A, B, cfg);
-  return [samplePoisson(lamA), samplePoisson(lamB)];
+  const m = scoreMatrix(lamA, lamB, cfg.dc !== false);
+  const cum = [];
+  let acc = 0;
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) { acc += m[a][b]; cum.push(acc); }
+  const dist = { cum, lamA, lamB };
+  if (cfg.cache) cfg.cache.set(key, dist);
+  return dist;
+}
+
+function sampleScore(A, B, cfg) {
+  const { cum } = matchDist(A, B, cfg);
+  const r = Math.random();
+  let i = 0;
+  while (i < cum.length - 1 && cum[i] < r) i++;
+  return [Math.floor(i / (MAX_GOALS + 1)), i % (MAX_GOALS + 1)];
 }
 
 // 淘汰赛单场随机出胜者
@@ -175,20 +207,22 @@ function sampleKnockoutWinner(codeA, codeB, cfg) {
   const A = TEAMS[codeA], B = TEAMS[codeB];
   const [ga, gb] = sampleScore(A, B, cfg);
   if (ga !== gb) return ga > gb ? codeA : codeB;
-  const [lamA, lamB] = matchLambdas(A, B, cfg);
+  const { lamA, lamB } = matchDist(A, B, cfg);
   const ea = samplePoisson(lamA / 3), eb = samplePoisson(lamB / 3);
   if (ea !== eb) return ea > eb ? codeA : codeB;
   return Math.random() < penaltyWinProb(A, B, cfg) ? codeA : codeB;
 }
 
 // 模拟一个小组的 6 场比赛，返回排序后的积分榜
+// 已录入真实比分的场次（results.js）直接采用实际结果
 function simulateGroup(groupCodes, cfg) {
   const table = {};
   for (const c of groupCodes) table[c] = { code: c, pts: 0, gf: 0, ga: 0 };
   for (let i = 0; i < groupCodes.length; i++) {
     for (let j = i + 1; j < groupCodes.length; j++) {
       const a = groupCodes[i], b = groupCodes[j];
-      const [ga, gb] = sampleScore(TEAMS[a], TEAMS[b], cfg);
+      const real = (typeof getActualResult === 'function') ? getActualResult(a, b) : null;
+      const [ga, gb] = real || sampleScore(TEAMS[a], TEAMS[b], cfg);
       table[a].gf += ga; table[a].ga += gb;
       table[b].gf += gb; table[b].ga += ga;
       if (ga > gb) table[a].pts += 3;
@@ -292,6 +326,7 @@ function simulateTournament(cfg) {
 
 // 跑 N 次完整模拟，统计各队走到每个阶段的概率
 function monteCarlo(iterations, cfg) {
+  cfg = { ...cfg, cache: new Map() };
   const stats = {};
   for (const c of Object.keys(TEAMS)) stats[c] = [0, 0, 0, 0, 0, 0, 0];
   for (let i = 0; i < iterations; i++) {

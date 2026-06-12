@@ -16,6 +16,7 @@
     <button class="tab active" data-tab="match">对阵预测</button>
     <button class="tab" data-tab="group">小组赛模拟</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="results">实际赛果</button>
     <button class="tab" data-tab="data">数据源</button>
     <button class="tab" data-tab="about">关于模型</button>
   </nav>
@@ -38,6 +39,7 @@
         <label class="opt"><input type="radio" name="stage" value="group" checked> 小组赛（可打平）</label>
         <label class="opt"><input type="radio" name="stage" value="knockout"> 淘汰赛（加时 + 点球）</label>
         <label class="opt"><input type="checkbox" id="homeAdv" checked> 东道主主场加成（美/加/墨）</label>
+        <label class="opt"><input type="checkbox" id="dcToggle" checked> Dixon-Coles 低比分修正</label>
         <button id="predictBtn" class="primary">预测比分</button>
       </div>
       <div class="weights">
@@ -93,6 +95,32 @@
     <div id="mcResult"></div>
   </section>
 
+  <!-- 实际赛果 -->
+  <section id="tab-results" class="panel">
+    <div class="card">
+      <div class="section-title">录入小组赛真实比分（已赛场次将直接计入模拟，并按 Elo 公式动态修正各队实力）</div>
+      <div class="options">
+        <label>小组：</label>
+        <select id="resGroup"></select>
+        <label>对阵：</label>
+        <select id="resFixture"></select>
+        <input type="number" id="resGa" min="0" max="20" value="0" class="score-input">
+        <span>:</span>
+        <input type="number" id="resGb" min="0" max="20" value="0" class="score-input">
+        <button id="resAdd" class="primary">录入 / 更新</button>
+      </div>
+      <p class="hint">赛果保存在浏览器本地（localStorage），刷新不丢失。</p>
+    </div>
+    <div class="card">
+      <div class="section-title">已录入的赛果</div>
+      <div id="resList"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">赛果带来的实力修正（Elo 当量，正值 = 表现超出预期）</div>
+      <div id="adjList"></div>
+    </div>
+  </section>
+
   <!-- 数据源 -->
   <section id="tab-data" class="panel">
     <div class="card">
@@ -120,6 +148,8 @@
         <li><strong>③ 市场赔率模型：</strong>把博彩公司夺冠赔率换算成隐含概率，再按对数尺度反推每队实力。赔率凝聚了市场对阵容、伤病、状态的全部判断，因此该模型不再叠加主场加成（市场已计价）。</li>
         <li><strong>④ 集成模型：</strong>对三个模型的实力分差做加权平均（权重可在对阵预测页调节，默认等权）。多源集成可以抵消单一数据源的偏差——这是提升预测稳健性最有效的手段。</li>
         <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
+        <li><strong>Dixon-Coles 修正：</strong>独立泊松会系统性低估 0:0 / 1:1、高估 1:0 / 0:1（攻防博弈导致低比分相关），按经典 Dixon-Coles (1997) τ 系数（ρ = −0.13）校正低比分区域。</li>
+        <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
         <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
       </ul>
@@ -130,6 +160,7 @@
   <footer>2026 FIFA World Cup · United States / Canada / Mexico · 48 队 · 104 场</footer>
 
   <script src="js/data.js"></script>
+  <script src="js/results.js"></script>
   <script src="js/model.js"></script>
   <script src="js/app.js"></script>
 </body>
