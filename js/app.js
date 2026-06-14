@@ -404,16 +404,139 @@ function initResultsTab() {
   });
 }
 
+// ---------- 投注推荐 ----------
+function initBettingTab() {
+  const dSel = $('#betDate');
+  const today = '2026-06-14';
+  for (const d of SCHEDULE_DATES) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    const n = fixturesOnDate(d).length;
+    opt.textContent = `${dateLabel(d)}（${n} 场）`;
+    dSel.appendChild(opt);
+  }
+  dSel.value = SCHEDULE_DATES.includes(today) ? today : SCHEDULE_DATES[0];
+
+  const mSel = $('#betModel');
+  for (const [k, v] of Object.entries(BET_MODELS)) {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = v.label;
+    mSel.appendChild(opt);
+  }
+  $('#betBtn').addEventListener('click', renderBetting);
+}
+
+function evTag(ev) {
+  if (ev > 0.03) return `<span class="up">价值 +${(ev * 100).toFixed(1)}%</span>`;
+  if (ev >= -0.02) return `<span class="dim">中性 ${(ev * 100).toFixed(1)}%</span>`;
+  return `<span class="down">无价值 ${(ev * 100).toFixed(1)}%</span>`;
+}
+
+// 单条投注腿的展示
+function legHtml(sel, kind, bankroll) {
+  const frac = kind === 'safe' ? safeStakeFrac(sel.p, sel.odds) : aggrStakeFrac(sel.p, sel.odds);
+  const amount = Math.round(bankroll * frac);
+  const stake = frac > 0
+    ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}）`
+    : '<span class="dim">无正期望，建议跳过</span>';
+  return `
+    <div class="bet-pick ${kind}">
+      <div class="bet-pick-main">
+        <span class="bet-market">${sel.market}</span>
+        <span class="bet-sel">${sel.pick}</span>
+      </div>
+      <div class="bet-meta">
+        赔率 <strong>${sel.odds.toFixed(2)}</strong> ·
+        命中 ${pct(sel.p)} ·
+        ${evTag(sel.ev)} ·
+        ${stake}
+      </div>
+    </div>`;
+}
+
+function parlayHtml(parlay, kind, bankroll, title) {
+  if (!parlay) {
+    return `<div class="card"><div class="section-title">${title}</div><p class="hint">今日可选场次不足以组成该串票（或无合适腿）。</p></div>`;
+  }
+  const legs = parlay.legs.map((l) => `
+    <div class="parlay-leg">
+      <span>${TEAMS[l.codeA].flag}${TEAMS[l.codeA].zh} vs ${TEAMS[l.codeB].zh}${TEAMS[l.codeB].flag}</span>
+      <span class="parlay-pick">${l.pick}</span>
+      <span class="parlay-odds">${l.odds.toFixed(2)}</span>
+    </div>`).join('');
+  const frac = kind === 'safe' ? safeStakeFrac(parlay.p, parlay.odds) : aggrStakeFrac(parlay.p, parlay.odds);
+  const amount = Math.round(bankroll * frac);
+  const payout = Math.round(amount * parlay.odds);
+  const stakeLine = frac > 0
+    ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}），命中可得约 ${payout}`
+    : '理论无正期望，仅供娱乐小额尝试';
+  return `
+    <div class="card parlay-card ${kind}">
+      <div class="section-title">${title}（${parlay.legs.length} 串 ${parlay.legs.length}）</div>
+      <div class="parlay-legs">${legs}</div>
+      <div class="parlay-summary">
+        总赔率 <strong>${parlay.odds.toFixed(2)}</strong> ·
+        全中概率 ${pct(parlay.p)} ·
+        ${evTag(parlay.ev)}
+      </div>
+      <div class="parlay-stake">${stakeLine}</div>
+    </div>`;
+}
+
+function renderBetting() {
+  const date = $('#betDate').value;
+  const modelKey = $('#betModel').value;
+  const bankroll = Math.max(0, parseInt($('#betBankroll').value, 10) || 0);
+  const rec = recommendForDate(date, BET_MODELS[modelKey].cfg);
+
+  const matchCards = rec.matches.map((row) => {
+    const f = row.fixture;
+    const A = TEAMS[f.a], B = TEAMS[f.b];
+    const head = `<div class="bet-head">
+      <span class="bet-teams">${A.flag} ${A.zh} <span class="dim">vs</span> ${B.zh} ${B.flag}</span>
+      <span class="dim">${f.group}组 · 第${f.md}轮</span>
+    </div>`;
+    if (row.played) {
+      return `<div class="card bet-match played-match">
+        ${head}
+        <div class="bet-meta">已结束 · 实际比分 <strong>${row.actual[0]} : ${row.actual[1]}</strong>（不参与推荐）</div>
+      </div>`;
+    }
+    const safe = row.safe ? legHtml(row.safe, 'safe', bankroll) : '<p class="hint">无合适稳胆</p>';
+    const aggr = row.aggr ? legHtml(row.aggr, 'aggr', bankroll) : '<p class="hint">无合适冲胆</p>';
+    return `<div class="card bet-match">
+      ${head}
+      <div class="bet-cols">
+        <div class="bet-col"><div class="bet-col-title safe-t">🛡 稳</div>${safe}</div>
+        <div class="bet-col"><div class="bet-col-title aggr-t">🚀 冲</div>${aggr}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const playedCount = rec.matches.filter((m) => m.played).length;
+  const liveCount = rec.matches.length - playedCount;
+  const summary = `<div class="card"><div class="section-title">${dateLabel(date)} · 共 ${rec.matches.length} 场（${playedCount} 场已赛，${liveCount} 场可推荐）· 估值模型：${BET_MODELS[modelKey].label}</div></div>`;
+
+  $('#betResult').innerHTML =
+    summary +
+    matchCards +
+    parlayHtml(rec.safeParlay, 'safe', bankroll, '🛡 当日稳串') +
+    parlayHtml(rec.aggrParlay, 'aggr', bankroll, '🚀 当日冲串');
+}
+
 // 赛果变化后刷新所有视图
 function refreshAll() {
   renderResultsTab();
   renderDataTable();
   renderMatch();
+  if ($('#betResult').innerHTML.trim()) renderBetting();
 }
 
 // ---------- 绑定 ----------
 initSelectors();
 initResultsTab();
+initBettingTab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
@@ -421,3 +544,4 @@ $('#mcBtn').addEventListener('click', renderTournament);
 renderMatch();
 renderDataTable();
 renderResultsTab();
+renderBetting();

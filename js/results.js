@@ -12,10 +12,18 @@ const RESULT_MAP = {};       // 'A|B' -> [ga, gb]（含反向键）
 function loadResults() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      for (const r of JSON.parse(raw)) {
-        if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
+    if (raw === null) {
+      // 首次访问：导入官方已赛比分（来自 schedule.js）
+      if (typeof RESULTS_SEED !== 'undefined') {
+        for (const r of RESULTS_SEED) {
+          if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
+        }
+        saveResults();
       }
+      return;
+    }
+    for (const r of JSON.parse(raw)) {
+      if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
     }
   } catch (e) { /* localStorage 不可用时静默忽略 */ }
 }

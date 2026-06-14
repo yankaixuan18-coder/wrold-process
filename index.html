@@ -202,6 +202,55 @@ footer { text-align: center; color: #5b6f96; font-size: 0.8rem; margin-top: 40px
   .heatmap th, .heatmap td { width: 32px; height: 26px; font-size: 0.65rem; }
 }
 
+/* ===== 投注推荐 ===== */
+.warn-card {
+  border-color: #f7c948;
+  background: rgba(247, 201, 72, 0.08);
+  color: #f4dca0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.warn-card strong { color: #f7c948; }
+
+.bet-match { padding: 16px 18px; }
+.bet-head {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+  border-bottom: 1px solid #2c4070; padding-bottom: 10px;
+}
+.bet-teams { font-size: 1.05rem; font-weight: 600; }
+
+.bet-cols { display: flex; gap: 14px; flex-wrap: wrap; }
+.bet-col { flex: 1; min-width: 240px; }
+.bet-col-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 8px; }
+.safe-t { color: #4ade80; }
+.aggr-t { color: #f472b6; }
+
+.bet-pick {
+  background: #0e1d3d; border: 1px solid #2c4070;
+  border-radius: 10px; padding: 10px 12px;
+}
+.bet-pick.safe { border-left: 3px solid #4ade80; }
+.bet-pick.aggr { border-left: 3px solid #f472b6; }
+.bet-pick-main { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.bet-market { font-size: 0.72rem; color: #93a6c8; background: #1a2c55; padding: 2px 7px; border-radius: 6px; }
+.bet-sel { font-weight: 700; font-size: 1rem; }
+.bet-meta { font-size: 0.82rem; color: #b9c8e8; line-height: 1.6; }
+
+.played-match { opacity: 0.7; }
+
+.parlay-card.safe { border-color: #4ade80; }
+.parlay-card.aggr { border-color: #f472b6; }
+.parlay-legs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.parlay-leg {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: #0e1d3d; border-radius: 8px; padding: 8px 12px; font-size: 0.88rem;
+}
+.parlay-pick { color: #38bdf8; font-weight: 600; flex: 1; text-align: center; }
+.parlay-odds { font-weight: 800; color: #f7c948; min-width: 44px; text-align: right; }
+.parlay-summary { font-size: 0.95rem; margin-bottom: 6px; }
+.parlay-stake { font-size: 0.85rem; color: #93a6c8; }
+
   </style>
 </head>
 <body>
@@ -214,6 +263,7 @@ footer { text-align: center; color: #5b6f96; font-size: 0.8rem; margin-top: 40px
     <button class="tab active" data-tab="match">对阵预测</button>
     <button class="tab" data-tab="group">小组赛模拟</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="betting">投注推荐</button>
     <button class="tab" data-tab="results">实际赛果</button>
     <button class="tab" data-tab="data">数据源</button>
     <button class="tab" data-tab="about">关于模型</button>
@@ -293,6 +343,27 @@ footer { text-align: center; color: #5b6f96; font-size: 0.8rem; margin-top: 40px
     <div id="mcResult"></div>
   </section>
 
+  <!-- 投注推荐 -->
+  <section id="tab-betting" class="panel">
+    <div class="card warn-card">
+      ⚠️ <strong>理性投注提示</strong>：以下推荐由统计模型基于当前赔率推演，<strong>不构成任何投注建议</strong>。
+      庄家长期占优，串票越多越难命中；赌博有风险，可能损失全部本金，请务必量力而行、设定上限。未成年人请勿参与。
+    </div>
+    <div class="card">
+      <div class="options">
+        <label>比赛日：</label>
+        <select id="betDate"></select>
+        <label>估值模型：</label>
+        <select id="betModel"></select>
+        <label>本金：</label>
+        <input type="number" id="betBankroll" min="0" value="1000" class="score-input" style="width:90px">
+        <button id="betBtn" class="primary">生成推荐</button>
+      </div>
+      <p class="hint">「稳」= 高命中率（双重机会 / 大小球等，低赔稳健）；「冲」= 正价值高赔（冷门 / 正确比分，高风险高回报）。建议仓位按凯利公式给出（稳 ¼ 凯利、冲 ½ 凯利）。</p>
+    </div>
+    <div id="betResult"></div>
+  </section>
+
   <!-- 实际赛果 -->
   <section id="tab-results" class="panel">
     <div class="card">
@@ -350,8 +421,9 @@ footer { text-align: center; color: #5b6f96; font-size: 0.8rem; margin-top: 40px
         <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
         <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
+        <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。已赛比分会通过动态修正让超/欠预期的球队产生价值，但庄家盘口保持赛前市场不变。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
       </ul>
-      <p class="disclaimer">⚠️ 预测结果由统计模型生成，仅供娱乐与参考，请勿用于赌博。足球是圆的！</p>
+      <p class="disclaimer">⚠️ 预测与投注推荐均由统计模型生成，仅供娱乐与参考，<strong>不构成投注建议</strong>。赌博有风险、长期庄家占优，请务必量力而行，未成年人请勿参与。足球是圆的！</p>
     </div>
   </section>
 
@@ -462,6 +534,114 @@ const R32_TEMPLATE = [
 // 后续轮次按相邻配对推进（近似官方走位，对整体概率影响很小）
 const R16_TEMPLATE = [[74, 77], [73, 75], [76, 78], [79, 80], [83, 84], [81, 82], [86, 88], [85, 87]];
 
+// ===== js/schedule.js =====
+// 2026 世界杯小组赛完整赛程（72 场），按官方日期排列
+// 数据来源：FIFA / ESPN / Yahoo / Olympics 等公开赛程；
+// 对阵与日期已逐场核对（含 6/11–6/13 已赛比分）。
+// 每场：{ date:'2026-06-14', md:轮次, group:'E', a:主列队, b:客列队 }
+const SCHEDULE = [
+  // —— 第 1 轮 ——
+  { date: '2026-06-11', md: 1, group: 'A', a: 'MEX', b: 'RSA' },
+  { date: '2026-06-11', md: 1, group: 'A', a: 'KOR', b: 'CZE' },
+  { date: '2026-06-12', md: 1, group: 'B', a: 'CAN', b: 'BIH' },
+  { date: '2026-06-12', md: 1, group: 'D', a: 'USA', b: 'PAR' },
+  { date: '2026-06-13', md: 1, group: 'B', a: 'QAT', b: 'SUI' },
+  { date: '2026-06-13', md: 1, group: 'C', a: 'BRA', b: 'MAR' },
+  { date: '2026-06-13', md: 1, group: 'C', a: 'HAI', b: 'SCO' },
+  { date: '2026-06-14', md: 1, group: 'D', a: 'AUS', b: 'TUR' },
+  { date: '2026-06-14', md: 1, group: 'E', a: 'GER', b: 'CUW' },
+  { date: '2026-06-14', md: 1, group: 'E', a: 'CIV', b: 'ECU' },
+  { date: '2026-06-14', md: 1, group: 'F', a: 'NED', b: 'JPN' },
+  { date: '2026-06-14', md: 1, group: 'F', a: 'SWE', b: 'TUN' },
+  { date: '2026-06-15', md: 1, group: 'G', a: 'BEL', b: 'EGY' },
+  { date: '2026-06-15', md: 1, group: 'G', a: 'IRN', b: 'NZL' },
+  { date: '2026-06-15', md: 1, group: 'H', a: 'ESP', b: 'CPV' },
+  { date: '2026-06-15', md: 1, group: 'H', a: 'KSA', b: 'URU' },
+  { date: '2026-06-16', md: 1, group: 'I', a: 'FRA', b: 'SEN' },
+  { date: '2026-06-16', md: 1, group: 'I', a: 'IRQ', b: 'NOR' },
+  { date: '2026-06-16', md: 1, group: 'J', a: 'ARG', b: 'ALG' },
+  { date: '2026-06-17', md: 1, group: 'J', a: 'AUT', b: 'JOR' },
+  { date: '2026-06-17', md: 1, group: 'K', a: 'POR', b: 'COD' },
+  { date: '2026-06-17', md: 1, group: 'K', a: 'UZB', b: 'COL' },
+  { date: '2026-06-17', md: 1, group: 'L', a: 'ENG', b: 'CRO' },
+  { date: '2026-06-17', md: 1, group: 'L', a: 'GHA', b: 'PAN' },
+  // —— 第 2 轮 ——
+  { date: '2026-06-18', md: 2, group: 'A', a: 'MEX', b: 'KOR' },
+  { date: '2026-06-18', md: 2, group: 'A', a: 'CZE', b: 'RSA' },
+  { date: '2026-06-18', md: 2, group: 'B', a: 'CAN', b: 'QAT' },
+  { date: '2026-06-18', md: 2, group: 'B', a: 'SUI', b: 'BIH' },
+  { date: '2026-06-19', md: 2, group: 'C', a: 'BRA', b: 'HAI' },
+  { date: '2026-06-19', md: 2, group: 'C', a: 'SCO', b: 'MAR' },
+  { date: '2026-06-19', md: 2, group: 'D', a: 'USA', b: 'AUS' },
+  { date: '2026-06-20', md: 2, group: 'D', a: 'TUR', b: 'PAR' },
+  { date: '2026-06-20', md: 2, group: 'E', a: 'GER', b: 'CIV' },
+  { date: '2026-06-20', md: 2, group: 'E', a: 'ECU', b: 'CUW' },
+  { date: '2026-06-20', md: 2, group: 'F', a: 'NED', b: 'SWE' },
+  { date: '2026-06-21', md: 2, group: 'F', a: 'TUN', b: 'JPN' },
+  { date: '2026-06-21', md: 2, group: 'G', a: 'BEL', b: 'IRN' },
+  { date: '2026-06-21', md: 2, group: 'G', a: 'NZL', b: 'EGY' },
+  { date: '2026-06-21', md: 2, group: 'H', a: 'ESP', b: 'KSA' },
+  { date: '2026-06-21', md: 2, group: 'H', a: 'URU', b: 'CPV' },
+  { date: '2026-06-22', md: 2, group: 'I', a: 'FRA', b: 'IRQ' },
+  { date: '2026-06-22', md: 2, group: 'I', a: 'NOR', b: 'SEN' },
+  { date: '2026-06-22', md: 2, group: 'J', a: 'ARG', b: 'AUT' },
+  { date: '2026-06-22', md: 2, group: 'J', a: 'JOR', b: 'ALG' },
+  { date: '2026-06-23', md: 2, group: 'K', a: 'POR', b: 'UZB' },
+  { date: '2026-06-23', md: 2, group: 'K', a: 'COL', b: 'COD' },
+  { date: '2026-06-23', md: 2, group: 'L', a: 'ENG', b: 'GHA' },
+  { date: '2026-06-23', md: 2, group: 'L', a: 'PAN', b: 'CRO' },
+  // —— 第 3 轮（每组两场同时进行）——
+  { date: '2026-06-24', md: 3, group: 'A', a: 'CZE', b: 'MEX' },
+  { date: '2026-06-24', md: 3, group: 'A', a: 'RSA', b: 'KOR' },
+  { date: '2026-06-24', md: 3, group: 'B', a: 'SUI', b: 'CAN' },
+  { date: '2026-06-24', md: 3, group: 'B', a: 'BIH', b: 'QAT' },
+  { date: '2026-06-24', md: 3, group: 'C', a: 'SCO', b: 'BRA' },
+  { date: '2026-06-24', md: 3, group: 'C', a: 'MAR', b: 'HAI' },
+  { date: '2026-06-25', md: 3, group: 'D', a: 'TUR', b: 'USA' },
+  { date: '2026-06-25', md: 3, group: 'D', a: 'PAR', b: 'AUS' },
+  { date: '2026-06-25', md: 3, group: 'E', a: 'ECU', b: 'GER' },
+  { date: '2026-06-25', md: 3, group: 'E', a: 'CUW', b: 'CIV' },
+  { date: '2026-06-25', md: 3, group: 'F', a: 'JPN', b: 'SWE' },
+  { date: '2026-06-25', md: 3, group: 'F', a: 'TUN', b: 'NED' },
+  { date: '2026-06-26', md: 3, group: 'G', a: 'EGY', b: 'IRN' },
+  { date: '2026-06-26', md: 3, group: 'G', a: 'NZL', b: 'BEL' },
+  { date: '2026-06-26', md: 3, group: 'H', a: 'URU', b: 'ESP' },
+  { date: '2026-06-26', md: 3, group: 'H', a: 'CPV', b: 'KSA' },
+  { date: '2026-06-26', md: 3, group: 'I', a: 'NOR', b: 'FRA' },
+  { date: '2026-06-26', md: 3, group: 'I', a: 'SEN', b: 'IRQ' },
+  { date: '2026-06-27', md: 3, group: 'J', a: 'ARG', b: 'JOR' },
+  { date: '2026-06-27', md: 3, group: 'J', a: 'ALG', b: 'AUT' },
+  { date: '2026-06-27', md: 3, group: 'K', a: 'COL', b: 'POR' },
+  { date: '2026-06-27', md: 3, group: 'K', a: 'COD', b: 'UZB' },
+  { date: '2026-06-27', md: 3, group: 'L', a: 'PAN', b: 'ENG' },
+  { date: '2026-06-27', md: 3, group: 'L', a: 'CRO', b: 'GHA' },
+];
+
+// 官方已赛比分（截至 6/13），首次访问时自动导入到「实际赛果」
+const RESULTS_SEED = [
+  { a: 'MEX', b: 'RSA', ga: 2, gb: 0 },
+  { a: 'KOR', b: 'CZE', ga: 2, gb: 1 },
+  { a: 'CAN', b: 'BIH', ga: 1, gb: 1 },
+  { a: 'USA', b: 'PAR', ga: 4, gb: 1 },
+  { a: 'QAT', b: 'SUI', ga: 1, gb: 1 },
+  { a: 'BRA', b: 'MAR', ga: 1, gb: 1 },
+  { a: 'HAI', b: 'SCO', ga: 0, gb: 1 },
+];
+
+// 全部有比赛的日期（升序、去重）
+const SCHEDULE_DATES = [...new Set(SCHEDULE.map((m) => m.date))].sort();
+
+function fixturesOnDate(date) {
+  return SCHEDULE.filter((m) => m.date === date);
+}
+
+// 日期中文显示，如 "6月14日 周日"
+function dateLabel(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  const wk = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${wk}`;
+}
+
 // ===== js/results.js =====
 // 实际赛果录入与动态实力修正
 // 录入的真实比分有两个作用：
@@ -477,10 +657,18 @@ const RESULT_MAP = {};       // 'A|B' -> [ga, gb]（含反向键）
 function loadResults() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      for (const r of JSON.parse(raw)) {
-        if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
+    if (raw === null) {
+      // 首次访问：导入官方已赛比分（来自 schedule.js）
+      if (typeof RESULTS_SEED !== 'undefined') {
+        for (const r of RESULTS_SEED) {
+          if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
+        }
+        saveResults();
       }
+      return;
+    }
+    for (const r of JSON.parse(raw)) {
+      if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push(r);
     }
   } catch (e) { /* localStorage 不可用时静默忽略 */ }
 }
@@ -619,11 +807,13 @@ function ensembleDiff(A, B, useHome, weights) {
 // cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...}, dc: true }
 // 实际赛果产生的动态修正 ADJ（见 results.js）叠加在所有模型上
 function strengthDiff(A, B, cfg = {}) {
-  const { model = 'ensemble', useHome = true, weights } = cfg;
+  const { model = 'ensemble', useHome = true, weights, ignoreAdj = false } = cfg;
   const base = model === 'ensemble'
     ? ensembleDiff(A, B, useHome, weights)
     : modelDiff(model, A, B, useHome);
-  const adj = (typeof ADJ !== 'undefined')
+  // 赛果动态修正：投注模块的「庄家盘口」用 ignoreAdj 保持赛前市场不变，
+  // 我方估计则吸收赛果，从而在球队超/欠预期时形成价值
+  const adj = (!ignoreAdj && typeof ADJ !== 'undefined')
     ? (ADJ[A.code] || 0) - (ADJ[B.code] || 0)
     : 0;
   return base + adj;
@@ -891,6 +1081,161 @@ function monteCarlo(iterations, cfg) {
     out[c] = arr.map((n) => n / iterations);
   }
   return out; // code -> [_, P出线, P16强, P8强, P4强, P决赛, P夺冠]
+}
+
+// ===== js/betting.js =====
+// 投注价值分析与推荐（稳 / 冲）
+// 方法：
+//   · 用「市场赔率模型」反推庄家盘口（按抽水 margin 折算成十进制赔率）。
+//   · 用「我们的模型」（默认 Elo+FIFA，排除市场，以发现与盘口的分歧）估计真实概率。
+//   · 价值 EV = 我方概率 × 庄家赔率 − 1；EV>0 即理论上有利可图。
+//   · 稳 = 高命中率（概率优先，剔除正确比分等低概率盘）。
+//   · 冲 = 高赔率 + 正价值（含冷门、正确比分），博取高回报。
+// 所有结果仅为统计推演，赌博有风险，务必量力而行。
+
+const VIG = 1.07;       // 胜平负 / 大小球 / 双方进球盘综合抽水
+const VIG_CS = 1.22;    // 正确比分盘抽水更高
+const OVER_LINE = 2.5;  // 大小球分界
+
+// 「我方模型」预设：默认排除市场，让 Elo+FIFA 与盘口形成分歧
+const BET_MODELS = {
+  elofifa:  { label: 'Elo + FIFA（默认·剔除市场找价值）', cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 0 } } },
+  ensemble: { label: '集成（含市场·更保守）',            cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 1 } } },
+  elo:      { label: '仅 Elo',                           cfg: { model: 'elo' } },
+  fifa:     { label: '仅 FIFA 排名',                     cfg: { model: 'fifa' } },
+};
+
+function decimalFromProb(p, vig) {
+  return Math.max(1.01, (1 / Math.max(p, 1e-6)) / vig);
+}
+
+// 由比分矩阵汇总各类盘口概率
+function marketProbs(matrix) {
+  let win = 0, draw = 0, loss = 0, over = 0, under = 0, bttsYes = 0, bttsNo = 0;
+  const cs = [];
+  for (let a = 0; a < matrix.length; a++) {
+    for (let b = 0; b < matrix[a].length; b++) {
+      const p = matrix[a][b];
+      if (a > b) win += p; else if (a === b) draw += p; else loss += p;
+      if (a + b > OVER_LINE) over += p; else under += p;
+      if (a > 0 && b > 0) bttsYes += p; else bttsNo += p;
+      cs.push({ a, b, p });
+    }
+  }
+  cs.sort((x, y) => y.p - x.p);
+  return { win, draw, loss, over, under, bttsYes, bttsNo, cs };
+}
+
+// 凯利公式建议仓位
+function kelly(p, odds) {
+  const b = odds - 1;
+  return b > 0 ? Math.max(0, (p * b - (1 - p)) / b) : 0;
+}
+function safeStakeFrac(p, odds) { return Math.min(0.05, 0.25 * kelly(p, odds)); } // 稳：1/4 凯利，上限 5%
+function aggrStakeFrac(p, odds) { return Math.min(0.10, 0.50 * kelly(p, odds)); } // 冲：1/2 凯利，上限 10%
+
+// 评估一场比赛的全部候选投注
+// betModelCfg 为 BET_MODELS[*].cfg
+function evaluateMatch(codeA, codeB, betModelCfg) {
+  const A = TEAMS[codeA], B = TEAMS[codeB];
+  const our = predictMatch(A, B, { ...betModelCfg, useHome: true, dc: true });
+  const om = marketProbs(our.matrix);
+  // 庄家盘口：纯市场赔率模型，保持赛前市场（ignoreAdj），不吸收赛果修正
+  const book = predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true });
+  const bm = marketProbs(book.matrix);
+
+  const sel = [];
+  const add = (market, pick, pOur, pBook, vig) => {
+    const odds = decimalFromProb(pBook, vig);
+    sel.push({ market, pick, p: pOur, odds, ev: pOur * odds - 1, codeA, codeB });
+  };
+  add('胜平负', A.zh + '胜', om.win, bm.win, VIG);
+  add('胜平负', '平局', om.draw, bm.draw, VIG);
+  add('胜平负', B.zh + '胜', om.loss, bm.loss, VIG);
+  add('双重机会', A.zh + '不败', om.win + om.draw, bm.win + bm.draw, VIG);
+  add('双重机会', B.zh + '不败', om.loss + om.draw, bm.loss + bm.draw, VIG);
+  add('双重机会', '分出胜负', om.win + om.loss, bm.win + bm.loss, VIG);
+  add('进球数', '大 ' + OVER_LINE + ' 球', om.over, bm.over, VIG);
+  add('进球数', '小 ' + OVER_LINE + ' 球', om.under, bm.under, VIG);
+  add('双方进球', '是', om.bttsYes, bm.bttsYes, VIG);
+  add('双方进球', '否', om.bttsNo, bm.bttsNo, VIG);
+  for (const c of om.cs.slice(0, 5)) {
+    const bc = bm.cs.find((x) => x.a === c.a && x.b === c.b);
+    add('正确比分', A.zh + ' ' + c.a + ':' + c.b + ' ' + B.zh, c.p, bc.p, VIG_CS);
+  }
+  return { codeA, codeB, A, B, our, sel, topScore: om.cs[0] };
+}
+
+// 单场「稳」推荐：高命中率，剔除正确比分；同等条件优先有正价值
+function pickSafe(m) {
+  const pool = m.sel.filter((s) => s.market !== '正确比分' && s.p >= 0.5);
+  if (!pool.length) return null;
+  pool.sort((x, y) => (y.ev > 0) - (x.ev > 0) || y.p - x.p);
+  return pool[0];
+}
+
+// 单场「冲」推荐：正价值 + 高赔率；若无则取最可能的正确比分博胆
+function pickAggressive(m) {
+  const value = m.sel.filter((s) => s.ev > 0.03 && s.odds >= 2.2);
+  if (value.length) {
+    value.sort((x, y) => y.ev - x.ev);
+    return value[0];
+  }
+  const cs = m.sel.filter((s) => s.market === '正确比分').sort((x, y) => y.p - x.p);
+  return cs[0] || null;
+}
+
+// 串票用的「冲」腿：剔除正确比分与极端长赔（避免串成天文数字），取有价值的中高赔盘
+function pickAggressiveLeg(m) {
+  const pool = m.sel.filter((s) => s.market !== '正确比分' && s.ev > 0.03 && s.odds >= 1.6 && s.odds <= 4.5);
+  if (!pool.length) return null;
+  pool.sort((x, y) => y.ev - x.ev);
+  return pool[0];
+}
+
+// 串票：每场一条腿，赔率相乘；概率按独立近似相乘
+function buildParlay(legs) {
+  let odds = 1, p = 1;
+  for (const l of legs) { odds *= l.odds; p *= l.p; }
+  return { legs, odds, p, ev: p * odds - 1 };
+}
+
+// 为某一天生成完整推荐
+// 返回 { matches:[{m, safe, aggr, played, actual}], safeParlay, aggrParlay }
+function recommendForDate(date, betModelCfg, opts = {}) {
+  const maxSafeLegs = opts.maxSafeLegs || 4;
+  const maxAggrLegs = opts.maxAggrLegs || 3;
+  const fixtures = fixturesOnDate(date);
+  const matches = [];
+  const safeCandidates = [];
+  const aggrCandidates = [];
+
+  for (const f of fixtures) {
+    const actual = (typeof getActualResult === 'function') ? getActualResult(f.a, f.b) : null;
+    if (actual) {
+      matches.push({ fixture: f, played: true, actual });
+      continue;
+    }
+    const m = evaluateMatch(f.a, f.b, betModelCfg);
+    const safe = pickSafe(m);
+    const aggr = pickAggressive(m);
+    matches.push({ fixture: f, played: false, m, safe, aggr });
+    if (safe && safe.p >= 0.6) safeCandidates.push(safe);
+    const aggrLeg = pickAggressiveLeg(m);
+    if (aggrLeg) aggrCandidates.push(aggrLeg);
+  }
+
+  // 稳串：命中率最高的若干腿
+  safeCandidates.sort((x, y) => y.p - x.p);
+  const safeLegs = safeCandidates.slice(0, maxSafeLegs);
+  const safeParlay = safeLegs.length >= 2 ? buildParlay(safeLegs) : null;
+
+  // 冲串：价值最高的若干腿
+  aggrCandidates.sort((x, y) => y.ev - x.ev);
+  const aggrLegs = aggrCandidates.slice(0, maxAggrLegs);
+  const aggrParlay = aggrLegs.length >= 2 ? buildParlay(aggrLegs) : null;
+
+  return { date, matches, safeParlay, aggrParlay };
 }
 
 // ===== js/app.js =====
@@ -1300,16 +1645,139 @@ function initResultsTab() {
   });
 }
 
+// ---------- 投注推荐 ----------
+function initBettingTab() {
+  const dSel = $('#betDate');
+  const today = '2026-06-14';
+  for (const d of SCHEDULE_DATES) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    const n = fixturesOnDate(d).length;
+    opt.textContent = `${dateLabel(d)}（${n} 场）`;
+    dSel.appendChild(opt);
+  }
+  dSel.value = SCHEDULE_DATES.includes(today) ? today : SCHEDULE_DATES[0];
+
+  const mSel = $('#betModel');
+  for (const [k, v] of Object.entries(BET_MODELS)) {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = v.label;
+    mSel.appendChild(opt);
+  }
+  $('#betBtn').addEventListener('click', renderBetting);
+}
+
+function evTag(ev) {
+  if (ev > 0.03) return `<span class="up">价值 +${(ev * 100).toFixed(1)}%</span>`;
+  if (ev >= -0.02) return `<span class="dim">中性 ${(ev * 100).toFixed(1)}%</span>`;
+  return `<span class="down">无价值 ${(ev * 100).toFixed(1)}%</span>`;
+}
+
+// 单条投注腿的展示
+function legHtml(sel, kind, bankroll) {
+  const frac = kind === 'safe' ? safeStakeFrac(sel.p, sel.odds) : aggrStakeFrac(sel.p, sel.odds);
+  const amount = Math.round(bankroll * frac);
+  const stake = frac > 0
+    ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}）`
+    : '<span class="dim">无正期望，建议跳过</span>';
+  return `
+    <div class="bet-pick ${kind}">
+      <div class="bet-pick-main">
+        <span class="bet-market">${sel.market}</span>
+        <span class="bet-sel">${sel.pick}</span>
+      </div>
+      <div class="bet-meta">
+        赔率 <strong>${sel.odds.toFixed(2)}</strong> ·
+        命中 ${pct(sel.p)} ·
+        ${evTag(sel.ev)} ·
+        ${stake}
+      </div>
+    </div>`;
+}
+
+function parlayHtml(parlay, kind, bankroll, title) {
+  if (!parlay) {
+    return `<div class="card"><div class="section-title">${title}</div><p class="hint">今日可选场次不足以组成该串票（或无合适腿）。</p></div>`;
+  }
+  const legs = parlay.legs.map((l) => `
+    <div class="parlay-leg">
+      <span>${TEAMS[l.codeA].flag}${TEAMS[l.codeA].zh} vs ${TEAMS[l.codeB].zh}${TEAMS[l.codeB].flag}</span>
+      <span class="parlay-pick">${l.pick}</span>
+      <span class="parlay-odds">${l.odds.toFixed(2)}</span>
+    </div>`).join('');
+  const frac = kind === 'safe' ? safeStakeFrac(parlay.p, parlay.odds) : aggrStakeFrac(parlay.p, parlay.odds);
+  const amount = Math.round(bankroll * frac);
+  const payout = Math.round(amount * parlay.odds);
+  const stakeLine = frac > 0
+    ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}），命中可得约 ${payout}`
+    : '理论无正期望，仅供娱乐小额尝试';
+  return `
+    <div class="card parlay-card ${kind}">
+      <div class="section-title">${title}（${parlay.legs.length} 串 ${parlay.legs.length}）</div>
+      <div class="parlay-legs">${legs}</div>
+      <div class="parlay-summary">
+        总赔率 <strong>${parlay.odds.toFixed(2)}</strong> ·
+        全中概率 ${pct(parlay.p)} ·
+        ${evTag(parlay.ev)}
+      </div>
+      <div class="parlay-stake">${stakeLine}</div>
+    </div>`;
+}
+
+function renderBetting() {
+  const date = $('#betDate').value;
+  const modelKey = $('#betModel').value;
+  const bankroll = Math.max(0, parseInt($('#betBankroll').value, 10) || 0);
+  const rec = recommendForDate(date, BET_MODELS[modelKey].cfg);
+
+  const matchCards = rec.matches.map((row) => {
+    const f = row.fixture;
+    const A = TEAMS[f.a], B = TEAMS[f.b];
+    const head = `<div class="bet-head">
+      <span class="bet-teams">${A.flag} ${A.zh} <span class="dim">vs</span> ${B.zh} ${B.flag}</span>
+      <span class="dim">${f.group}组 · 第${f.md}轮</span>
+    </div>`;
+    if (row.played) {
+      return `<div class="card bet-match played-match">
+        ${head}
+        <div class="bet-meta">已结束 · 实际比分 <strong>${row.actual[0]} : ${row.actual[1]}</strong>（不参与推荐）</div>
+      </div>`;
+    }
+    const safe = row.safe ? legHtml(row.safe, 'safe', bankroll) : '<p class="hint">无合适稳胆</p>';
+    const aggr = row.aggr ? legHtml(row.aggr, 'aggr', bankroll) : '<p class="hint">无合适冲胆</p>';
+    return `<div class="card bet-match">
+      ${head}
+      <div class="bet-cols">
+        <div class="bet-col"><div class="bet-col-title safe-t">🛡 稳</div>${safe}</div>
+        <div class="bet-col"><div class="bet-col-title aggr-t">🚀 冲</div>${aggr}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const playedCount = rec.matches.filter((m) => m.played).length;
+  const liveCount = rec.matches.length - playedCount;
+  const summary = `<div class="card"><div class="section-title">${dateLabel(date)} · 共 ${rec.matches.length} 场（${playedCount} 场已赛，${liveCount} 场可推荐）· 估值模型：${BET_MODELS[modelKey].label}</div></div>`;
+
+  $('#betResult').innerHTML =
+    summary +
+    matchCards +
+    parlayHtml(rec.safeParlay, 'safe', bankroll, '🛡 当日稳串') +
+    parlayHtml(rec.aggrParlay, 'aggr', bankroll, '🚀 当日冲串');
+}
+
 // 赛果变化后刷新所有视图
 function refreshAll() {
   renderResultsTab();
   renderDataTable();
   renderMatch();
+  if ($('#betResult').innerHTML.trim()) renderBetting();
 }
 
 // ---------- 绑定 ----------
 initSelectors();
 initResultsTab();
+initBettingTab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
@@ -1317,6 +1785,7 @@ $('#mcBtn').addEventListener('click', renderTournament);
 renderMatch();
 renderDataTable();
 renderResultsTab();
+renderBetting();
 
   </script>
 </body>

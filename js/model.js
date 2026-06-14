@@ -68,11 +68,13 @@ function ensembleDiff(A, B, useHome, weights) {
 // cfg: { model: 'ensemble'|'elo'|'fifa'|'market', useHome: true, weights: {...}, dc: true }
 // 实际赛果产生的动态修正 ADJ（见 results.js）叠加在所有模型上
 function strengthDiff(A, B, cfg = {}) {
-  const { model = 'ensemble', useHome = true, weights } = cfg;
+  const { model = 'ensemble', useHome = true, weights, ignoreAdj = false } = cfg;
   const base = model === 'ensemble'
     ? ensembleDiff(A, B, useHome, weights)
     : modelDiff(model, A, B, useHome);
-  const adj = (typeof ADJ !== 'undefined')
+  // 赛果动态修正：投注模块的「庄家盘口」用 ignoreAdj 保持赛前市场不变，
+  // 我方估计则吸收赛果，从而在球队超/欠预期时形成价值
+  const adj = (!ignoreAdj && typeof ADJ !== 'undefined')
     ? (ADJ[A.code] || 0) - (ADJ[B.code] || 0)
     : 0;
   return base + adj;
