@@ -68,24 +68,44 @@ function clearResults() {
   recomputeAdjustments();
 }
 
+// 单场 Elo 当量更新量（A 视角，B 取相反数）。
+// delta = K × G × (实际得分 - 预期得分)，G 为净胜球放大系数。
+// 预期值用集成实力差（含调用时 ADJ 的累计状态与东道主主场）。
+const ELO_K = 50;
+function eloDelta(A, B, ga, gb) {
+  const d = strengthDiff(A, B, { model: 'ensemble', useHome: true });
+  const we = 1 / (1 + Math.pow(10, -d / 400));
+  const w = ga > gb ? 1 : ga === gb ? 0.5 : 0;
+  const margin = Math.abs(ga - gb);
+  const g = margin <= 1 ? 1 : margin === 2 ? 1.5 : (11 + margin) / 8;
+  return ELO_K * g * (w - we);
+}
+
 // 按录入顺序回放全部赛果，逐场做 Elo 更新
-// delta = K × G × (实际得分 - 预期得分)，G 为净胜球放大系数
 function recomputeAdjustments() {
   for (const k of Object.keys(ADJ)) delete ADJ[k];
   rebuildResultMap();
-  const K = 50;
   for (const r of RESULTS) {
-    const A = TEAMS[r.a], B = TEAMS[r.b];
-    // 预期值用集成实力差（含此前赛果的累计修正与东道主主场）
-    const d = strengthDiff(A, B, { model: 'ensemble', useHome: true });
-    const we = 1 / (1 + Math.pow(10, -d / 400));
-    const w = r.ga > r.gb ? 1 : r.ga === r.gb ? 0.5 : 0;
-    const margin = Math.abs(r.ga - r.gb);
-    const g = margin <= 1 ? 1 : margin === 2 ? 1.5 : (11 + margin) / 8;
-    const delta = K * g * (w - we);
+    const delta = eloDelta(TEAMS[r.a], TEAMS[r.b], r.ga, r.gb);
     ADJ[r.a] = (ADJ[r.a] || 0) + delta;
     ADJ[r.b] = (ADJ[r.b] || 0) - delta;
   }
+}
+
+// 赛果按官方赛程日期排序（用于回测的时序回放，避免未来信息泄漏）。
+// 找不到对应赛程的赛果排到最后，保持相对顺序。
+function chronoResults() {
+  const dateOf = {};
+  if (typeof SCHEDULE !== 'undefined') {
+    for (const m of SCHEDULE) {
+      dateOf[m.a + '|' + m.b] = m.date;
+      dateOf[m.b + '|' + m.a] = m.date;
+    }
+  }
+  return RESULTS
+    .map((r, i) => ({ r, i, date: dateOf[r.a + '|' + r.b] || '9999-12-31' }))
+    .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.i - y.i))
+    .map((o) => o.r);
 }
 
 loadResults();

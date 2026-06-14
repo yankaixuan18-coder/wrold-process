@@ -16,8 +16,11 @@
   <nav class="tabs">
     <button class="tab active" data-tab="match">对阵预测</button>
     <button class="tab" data-tab="group">小组赛模拟</button>
+    <button class="tab" data-tab="standings">实时积分榜</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
     <button class="tab" data-tab="betting">投注推荐</button>
+    <button class="tab" data-tab="ledger">投注台账</button>
+    <button class="tab" data-tab="backtest">回测校准</button>
     <button class="tab" data-tab="results">实际赛果</button>
     <button class="tab" data-tab="data">数据源</button>
     <button class="tab" data-tab="about">关于模型</button>
@@ -73,6 +76,18 @@
     <div id="groupResult"></div>
   </section>
 
+  <!-- 实时积分榜 -->
+  <section id="tab-standings" class="panel">
+    <div class="card">
+      <div class="options">
+        <span class="section-title" style="margin:0">实时积分榜 = 已录入赛果的真实排名；出线概率 = 集成模型对剩余比赛的模拟（前二）。</span>
+        <button id="standingsBtn" class="primary">刷新积分榜</button>
+      </div>
+      <p class="hint">排序按 FIFA 小组规则：积分 → 净胜球 → 进球 → 相互战绩。第三名仍可能以「最佳第三」出线，详见「全程夺冠模拟」。</p>
+    </div>
+    <div id="standingsResult"></div>
+  </section>
+
   <!-- 全程模拟 -->
   <section id="tab-tournament" class="panel">
     <div class="card">
@@ -116,6 +131,38 @@
       <p class="hint">「稳」= 高命中率（双重机会 / 大小球等，低赔稳健）；「冲」= 正价值高赔（冷门 / 正确比分，高风险高回报）。建议仓位按凯利公式给出（稳 ¼ 凯利、冲 ½ 凯利）。</p>
     </div>
     <div id="betResult"></div>
+  </section>
+
+  <!-- 投注台账 -->
+  <section id="tab-ledger" class="panel">
+    <div class="card warn-card">
+      ⚠️ 台账用于记录你<strong>真实下注</strong>的盈亏，便于检验长期是否盈利。赌博有风险，请量力而行，未成年人请勿参与。
+    </div>
+    <div class="card">
+      <div class="section-title">手动记一笔</div>
+      <div class="options">
+        <input type="text" id="ledMatch" placeholder="对阵 / 备注" class="text-input">
+        <input type="text" id="ledPick" placeholder="投注内容（如 美国不败）" class="text-input">
+        <label>赔率</label><input type="number" id="ledOdds" min="1" step="0.01" value="2.00" class="score-input" style="width:80px">
+        <label>本金</label><input type="number" id="ledStake" min="0" value="100" class="score-input" style="width:80px">
+        <button id="ledAdd" class="primary">记入台账</button>
+      </div>
+      <p class="hint">在「投注推荐」页点各推荐旁的「记台账」可一键记入（默认待开）。</p>
+    </div>
+    <div id="ledgerResult"></div>
+  </section>
+
+  <!-- 回测校准 -->
+  <section id="tab-backtest" class="panel">
+    <div class="card">
+      <div class="options">
+        <label>待测模型：</label>
+        <select id="btModel"></select>
+        <button id="btBtn" class="primary">运行回测</button>
+      </div>
+      <p class="hint">时序回放（walk-forward）：预测每场时只用此前赛果，杜绝未来信息泄漏；与「市场模型」和「均匀基准」对照。Brier 分数、对数损失越低越好。样本越少结论越不稳。</p>
+    </div>
+    <div id="backtestResult"></div>
   </section>
 
   <!-- 实际赛果 -->
@@ -175,7 +222,11 @@
         <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
         <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
-        <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。已赛比分会通过动态修正让超/欠预期的球队产生价值，但庄家盘口保持赛前市场不变。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
+        <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。可在每场录入<strong>真实赔率</strong>让 EV 基于实盘计算。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
+        <li><strong>回测校准：</strong>对已结束比赛做<strong>时序回放</strong>（预测每场只用此前赛果，杜绝未来信息泄漏），算出胜平负命中率、Brier 分数、对数损失、比分命中率、总进球 MAE，并与「市场模型」「均匀基准」对照，附校准曲线——这是衡量模型到底准不准、值不值得信的关键。</li>
+        <li><strong>实时积分榜：</strong>用已录入赛果按 FIFA 规则（积分→净胜球→进球→相互战绩）算当前真实排名，并叠加模型对剩余比赛的前二出线概率。</li>
+        <li><strong>投注台账：</strong>记录真实下注与输赢，统计累计盈亏、ROI、命中率，让工具能自我验证。</li>
+        <li><strong>不确定性：</strong>全程模拟的夺冠概率附 95% 蒙特卡洛置信区间，诚实反映抽样精度。</li>
       </ul>
       <p class="disclaimer">⚠️ 预测与投注推荐均由统计模型生成，仅供娱乐与参考，<strong>不构成投注建议</strong>。赌博有风险、长期庄家占优，请务必量力而行，未成年人请勿参与。足球是圆的！</p>
     </div>

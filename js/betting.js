@@ -13,10 +13,10 @@ const OVER_LINE = 2.5;  // 大小球分界
 
 // 「我方模型」预设：默认排除市场，让 Elo+FIFA 与盘口形成分歧
 const BET_MODELS = {
-  elofifa:  { label: 'Elo + FIFA（默认·剔除市场找价值）', cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 0 } } },
-  ensemble: { label: '集成（含市场·更保守）',            cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 1 } } },
-  elo:      { label: '仅 Elo',                           cfg: { model: 'elo' } },
-  fifa:     { label: '仅 FIFA 排名',                     cfg: { model: 'fifa' } },
+  elofifa:  { label: 'Elo + FIFA（默认·剔除市场找价值）', short: 'Elo+FIFA', cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 0 } } },
+  ensemble: { label: '集成（含市场·更保守）',            short: '集成',     cfg: { model: 'ensemble', weights: { elo: 1, fifa: 1, market: 1 } } },
+  elo:      { label: '仅 Elo',                           short: 'Elo',      cfg: { model: 'elo' } },
+  fifa:     { label: '仅 FIFA 排名',                     short: 'FIFA',     cfg: { model: 'fifa' } },
 };
 
 function decimalFromProb(p, vig) {
@@ -49,8 +49,9 @@ function safeStakeFrac(p, odds) { return Math.min(0.05, 0.25 * kelly(p, odds)); 
 function aggrStakeFrac(p, odds) { return Math.min(0.10, 0.50 * kelly(p, odds)); } // 冲：1/2 凯利，上限 10%
 
 // 评估一场比赛的全部候选投注
-// betModelCfg 为 BET_MODELS[*].cfg
-function evaluateMatch(codeA, codeB, betModelCfg) {
+// betModelCfg 为 BET_MODELS[*].cfg；realOdds（可选）= {home,draw,away} 十进制真实赔率，
+// 若提供则胜平负盘改用真实赔率算 EV（其余盘口仍按市场合成）。
+function evaluateMatch(codeA, codeB, betModelCfg, realOdds) {
   const A = TEAMS[codeA], B = TEAMS[codeB];
   const our = predictMatch(A, B, { ...betModelCfg, useHome: true, dc: true });
   const om = marketProbs(our.matrix);
@@ -63,9 +64,20 @@ function evaluateMatch(codeA, codeB, betModelCfg) {
     const odds = decimalFromProb(pBook, vig);
     sel.push({ market, pick, p: pOur, odds, ev: pOur * odds - 1, codeA, codeB });
   };
-  add('胜平负', A.zh + '胜', om.win, bm.win, VIG);
-  add('胜平负', '平局', om.draw, bm.draw, VIG);
-  add('胜平负', B.zh + '胜', om.loss, bm.loss, VIG);
+  // 直接指定赔率的加注（用于真实赔率）
+  const addOdds = (market, pick, pOur, odds) => {
+    sel.push({ market, pick, p: pOur, odds, ev: pOur * odds - 1, codeA, codeB, real: true });
+  };
+  const ro = realOdds && realOdds.home > 1 && realOdds.draw > 1 && realOdds.away > 1 ? realOdds : null;
+  if (ro) {
+    addOdds('胜平负', A.zh + '胜', om.win, ro.home);
+    addOdds('胜平负', '平局', om.draw, ro.draw);
+    addOdds('胜平负', B.zh + '胜', om.loss, ro.away);
+  } else {
+    add('胜平负', A.zh + '胜', om.win, bm.win, VIG);
+    add('胜平负', '平局', om.draw, bm.draw, VIG);
+    add('胜平负', B.zh + '胜', om.loss, bm.loss, VIG);
+  }
   add('双重机会', A.zh + '不败', om.win + om.draw, bm.win + bm.draw, VIG);
   add('双重机会', B.zh + '不败', om.loss + om.draw, bm.loss + bm.draw, VIG);
   add('双重机会', '分出胜负', om.win + om.loss, bm.win + bm.loss, VIG);
@@ -119,6 +131,7 @@ function buildParlay(legs) {
 function recommendForDate(date, betModelCfg, opts = {}) {
   const maxSafeLegs = opts.maxSafeLegs || 4;
   const maxAggrLegs = opts.maxAggrLegs || 3;
+  const oddsMap = opts.oddsMap || {};
   const fixtures = fixturesOnDate(date);
   const matches = [];
   const safeCandidates = [];
@@ -130,7 +143,7 @@ function recommendForDate(date, betModelCfg, opts = {}) {
       matches.push({ fixture: f, played: true, actual });
       continue;
     }
-    const m = evaluateMatch(f.a, f.b, betModelCfg);
+    const m = evaluateMatch(f.a, f.b, betModelCfg, oddsMap[f.a + '|' + f.b]);
     const safe = pickSafe(m);
     const aggr = pickAggressive(m);
     matches.push({ fixture: f, played: false, m, safe, aggr });

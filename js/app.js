@@ -9,7 +9,11 @@ document.querySelectorAll('.tab').forEach((btn) => {
     document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
     document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
     btn.classList.add('active');
-    $('#tab-' + btn.dataset.tab).classList.add('active');
+    const tab = btn.dataset.tab;
+    $('#tab-' + tab).classList.add('active');
+    // 首次打开时惰性渲染较重的页
+    if (tab === 'standings' && !$('#standingsResult').innerHTML.trim()) renderStandings();
+    if (tab === 'backtest' && !$('#backtestResult').innerHTML.trim()) renderBacktest();
   });
 });
 
@@ -270,14 +274,14 @@ function renderTournament() {
           <td class="bar-cell">
             <div class="mini-bar"><div style="width:${Math.min(100, r.s[6] * 100 / 0.3).toFixed(1)}%"></div></div>
           </td>
-          <td class="pct"><strong>${pct(r.s[6], 1)}</strong></td>
+          <td class="pct"><strong>${pct(r.s[6], 1)}</strong> <span class="dim">±${(1.96 * Math.sqrt(r.s[6] * (1 - r.s[6]) / runs) * 100).toFixed(1)}</span></td>
         </tr>`).join('');
 
     $('#mcResult').innerHTML = `
       <div class="card">
-        <div class="section-title">48 队全程概率（${MODEL_INFO[cfg.model].name} · ${runs.toLocaleString()} 次完整模拟，耗时 ${elapsed}s，按夺冠概率排序）</div>
+        <div class="section-title">48 队全程概率（${MODEL_INFO[cfg.model].name} · ${runs.toLocaleString()} 次完整模拟，耗时 ${elapsed}s，按夺冠概率排序）· 夺冠列含 95% 蒙特卡洛置信区间（±）</div>
         <table class="standings">
-          <tr><th>#</th><th style="text-align:left">球队</th><th>小组出线</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th colspan="2">夺冠</th></tr>
+          <tr><th>#</th><th style="text-align:left">球队</th><th>小组出线</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th colspan="2">夺冠 (95%CI)</th></tr>
           ${rows}
         </table>
       </div>`;
@@ -433,29 +437,40 @@ function evTag(ev) {
   return `<span class="down">无价值 ${(ev * 100).toFixed(1)}%</span>`;
 }
 
+// 真实赔率覆盖（本地持久化），key = 'a|b' -> {home,draw,away}
+const ODDS_KEY = 'wc2026_oddsovr';
+const oddsOverrides = {};
+(function loadOddsOverrides() {
+  try { const raw = localStorage.getItem(ODDS_KEY); if (raw) Object.assign(oddsOverrides, JSON.parse(raw)); } catch (e) { /* ignore */ }
+})();
+function saveOddsOverrides() {
+  try { localStorage.setItem(ODDS_KEY, JSON.stringify(oddsOverrides)); } catch (e) { /* ignore */ }
+}
+
 // 单条投注腿的展示
-function legHtml(sel, kind, bankroll) {
+function legHtml(sel, kind, bankroll, matchLabel, date) {
   const frac = kind === 'safe' ? safeStakeFrac(sel.p, sel.odds) : aggrStakeFrac(sel.p, sel.odds);
   const amount = Math.round(bankroll * frac);
   const stake = frac > 0
     ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}）`
     : '<span class="dim">无正期望，建议跳过</span>';
+  const log = `<button class="mini-btn led-log" data-date="${date}" data-match="${matchLabel}" data-pick="${sel.market} ${sel.pick}" data-odds="${sel.odds.toFixed(2)}" data-stake="${amount > 0 ? amount : ''}">记台账</button>`;
   return `
     <div class="bet-pick ${kind}">
       <div class="bet-pick-main">
-        <span class="bet-market">${sel.market}</span>
+        <span class="bet-market">${sel.market}${sel.real ? ' · 真实赔率' : ''}</span>
         <span class="bet-sel">${sel.pick}</span>
       </div>
       <div class="bet-meta">
         赔率 <strong>${sel.odds.toFixed(2)}</strong> ·
         命中 ${pct(sel.p)} ·
         ${evTag(sel.ev)} ·
-        ${stake}
+        ${stake} ${log}
       </div>
     </div>`;
 }
 
-function parlayHtml(parlay, kind, bankroll, title) {
+function parlayHtml(parlay, kind, bankroll, title, date) {
   if (!parlay) {
     return `<div class="card"><div class="section-title">${title}</div><p class="hint">今日可选场次不足以组成该串票（或无合适腿）。</p></div>`;
   }
@@ -471,6 +486,8 @@ function parlayHtml(parlay, kind, bankroll, title) {
   const stakeLine = frac > 0
     ? `建议投 ${(frac * 100).toFixed(1)}% 本金（约 ${amount}），命中可得约 ${payout}`
     : '理论无正期望，仅供娱乐小额尝试';
+  const pickDesc = parlay.legs.map((l) => `${TEAMS[l.codeA].zh}/${TEAMS[l.codeB].zh}:${l.pick}`).join(' + ');
+  const log = `<button class="mini-btn led-log" data-date="${date}" data-match="${title} ${parlay.legs.length}串" data-pick="${pickDesc}" data-odds="${parlay.odds.toFixed(2)}" data-stake="${amount > 0 ? amount : ''}">记台账</button>`;
   return `
     <div class="card parlay-card ${kind}">
       <div class="section-title">${title}（${parlay.legs.length} 串 ${parlay.legs.length}）</div>
@@ -478,7 +495,7 @@ function parlayHtml(parlay, kind, bankroll, title) {
       <div class="parlay-summary">
         总赔率 <strong>${parlay.odds.toFixed(2)}</strong> ·
         全中概率 ${pct(parlay.p)} ·
-        ${evTag(parlay.ev)}
+        ${evTag(parlay.ev)} ${log}
       </div>
       <div class="parlay-stake">${stakeLine}</div>
     </div>`;
@@ -488,7 +505,7 @@ function renderBetting() {
   const date = $('#betDate').value;
   const modelKey = $('#betModel').value;
   const bankroll = Math.max(0, parseInt($('#betBankroll').value, 10) || 0);
-  const rec = recommendForDate(date, BET_MODELS[modelKey].cfg);
+  const rec = recommendForDate(date, BET_MODELS[modelKey].cfg, { oddsMap: oddsOverrides });
 
   const matchCards = rec.matches.map((row) => {
     const f = row.fixture;
@@ -503,14 +520,26 @@ function renderBetting() {
         <div class="bet-meta">已结束 · 实际比分 <strong>${row.actual[0]} : ${row.actual[1]}</strong>（不参与推荐）</div>
       </div>`;
     }
-    const safe = row.safe ? legHtml(row.safe, 'safe', bankroll) : '<p class="hint">无合适稳胆</p>';
-    const aggr = row.aggr ? legHtml(row.aggr, 'aggr', bankroll) : '<p class="hint">无合适冲胆</p>';
+    const label = `${A.zh} vs ${B.zh}`;
+    const safe = row.safe ? legHtml(row.safe, 'safe', bankroll, label, date) : '<p class="hint">无合适稳胆</p>';
+    const aggr = row.aggr ? legHtml(row.aggr, 'aggr', bankroll, label, date) : '<p class="hint">无合适冲胆</p>';
+    const ovr = oddsOverrides[f.a + '|' + f.b];
+    const pair = f.a + '|' + f.b;
+    const oddsRow = `<div class="real-odds" data-pair="${pair}">
+      <span>真实赔率：</span>
+      ${A.zh}<input class="ro-h" type="number" step="0.01" min="1" placeholder="主" value="${ovr ? ovr.home : ''}">
+      平<input class="ro-d" type="number" step="0.01" min="1" placeholder="平" value="${ovr ? ovr.draw : ''}">
+      ${B.zh}<input class="ro-a" type="number" step="0.01" min="1" placeholder="客" value="${ovr ? ovr.away : ''}">
+      <button class="mini-btn odds-apply" data-pair="${pair}">用真实赔率重算</button>
+      ${ovr ? `<button class="mini-btn odds-clear" data-pair="${pair}">清除</button>` : ''}
+    </div>`;
     return `<div class="card bet-match">
       ${head}
       <div class="bet-cols">
         <div class="bet-col"><div class="bet-col-title safe-t">🛡 稳</div>${safe}</div>
         <div class="bet-col"><div class="bet-col-title aggr-t">🚀 冲</div>${aggr}</div>
       </div>
+      ${oddsRow}
     </div>`;
   }).join('');
 
@@ -521,8 +550,184 @@ function renderBetting() {
   $('#betResult').innerHTML =
     summary +
     matchCards +
-    parlayHtml(rec.safeParlay, 'safe', bankroll, '🛡 当日稳串') +
-    parlayHtml(rec.aggrParlay, 'aggr', bankroll, '🚀 当日冲串');
+    parlayHtml(rec.safeParlay, 'safe', bankroll, '🛡 当日稳串', date) +
+    parlayHtml(rec.aggrParlay, 'aggr', bankroll, '🚀 当日冲串', date);
+}
+
+// 投注页的点击委托（记台账 / 真实赔率重算）
+function initBettingDelegation() {
+  $('#betResult').addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.classList.contains('led-log')) {
+      addBet({ date: t.dataset.date, match: t.dataset.match, pick: t.dataset.pick,
+        odds: parseFloat(t.dataset.odds) || 0, stake: parseFloat(t.dataset.stake) || 0, status: 'pending' });
+      renderLedger();
+      t.textContent = '✓ 已记';
+      t.disabled = true;
+      return;
+    }
+    if (t.classList.contains('odds-apply')) {
+      const card = t.closest('.bet-match');
+      const h = parseFloat(card.querySelector('.ro-h').value);
+      const d = parseFloat(card.querySelector('.ro-d').value);
+      const a = parseFloat(card.querySelector('.ro-a').value);
+      if (h > 1 && d > 1 && a > 1) {
+        oddsOverrides[t.dataset.pair] = { home: h, draw: d, away: a };
+        saveOddsOverrides();
+        renderBetting();
+      }
+      return;
+    }
+    if (t.classList.contains('odds-clear')) {
+      delete oddsOverrides[t.dataset.pair];
+      saveOddsOverrides();
+      renderBetting();
+    }
+  });
+}
+
+// ---------- 实时积分榜 ----------
+function renderStandings() {
+  const cfg = { model: 'ensemble', useHome: true, weights: { elo: 1, fifa: 1, market: 1 }, cache: new Map() };
+  const RUNS = 3000;
+  const cards = GROUP_NAMES.map((g) => {
+    const table = groupStandings(g);
+    const agg = {};
+    for (const c of GROUPS[g]) agg[c] = 0;
+    for (let i = 0; i < RUNS; i++) {
+      const t = simulateGroup(GROUPS[g], cfg);
+      if (t[0]) agg[t[0].code]++;
+      if (t[1]) agg[t[1].code]++;
+    }
+    const rows = table.map((r, idx) => {
+      const adv = agg[r.code] / RUNS;
+      const rem = remainingOpponents(r.code).map((x) => TEAMS[x].flag).join(' ') || '—';
+      return `<tr class="${idx === 0 ? 'q1' : idx === 1 ? 'q2' : ''}">
+        <td>${idx + 1}</td>
+        <td class="team-cell">${teamLabel(TEAMS[r.code])}</td>
+        <td>${r.P}</td><td>${r.W}</td><td>${r.D}</td><td>${r.L}</td>
+        <td>${r.GF}:${r.GA}</td><td>${r.GD >= 0 ? '+' : ''}${r.GD}</td>
+        <td><strong>${r.Pts}</strong></td>
+        <td class="pct">${pct(adv, 0)}</td><td>${rem}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="card standings-group"><h3>${g} 组</h3>
+      <table class="mini-standings">
+        <tr><th>#</th><th style="text-align:left">球队</th><th>赛</th><th>胜</th><th>平</th><th>负</th><th>进:失</th><th>净</th><th>分</th><th>前二率</th><th>余赛</th></tr>
+        ${rows}
+      </table></div>`;
+  }).join('');
+  $('#standingsResult').innerHTML = cards;
+}
+
+// ---------- 回测校准 ----------
+function initBacktestTab() {
+  const s = $('#btModel');
+  for (const [k, v] of Object.entries(BET_MODELS)) {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = v.label;
+    s.appendChild(o);
+  }
+  s.value = 'ensemble';
+  $('#btBtn').addEventListener('click', renderBacktest);
+}
+
+function renderBacktest() {
+  const key = $('#btModel').value;
+  const bt = runBacktest(BET_MODELS[key].cfg);
+  if (!bt) {
+    $('#backtestResult').innerHTML = '<div class="card"><p class="hint">尚无已结束比赛，无法回测。请先到「实际赛果」录入比分。</p></div>';
+    return;
+  }
+  const m = bt.model, mk = bt.market, bl = bt.baseline;
+  // 每行高亮最优（lower=true 表示越低越好）
+  const row = (name, get, lower, fmt) => {
+    const vals = [get(m), get(mk), get(bl)];
+    const best = lower ? Math.min(...vals) : Math.max(...vals);
+    const cell = (v) => `<td class="pct ${v === best ? 'bt-best' : ''}">${fmt(v)}</td>`;
+    return `<tr><td class="team-cell">${name}</td>${cell(vals[0])}${cell(vals[1])}${cell(vals[2])}</tr>`;
+  };
+  const p0 = (v) => (v * 100).toFixed(0) + '%';
+  const f3 = (v) => v.toFixed(3);
+  const f2 = (v) => v.toFixed(2);
+  const table = `<div class="card">
+    <div class="section-title">回测对比 · 样本 ${m.n} 场（${m.n < 15 ? '样本偏少，结论仅供参考' : '样本可参考'}）</div>
+    <table class="standings">
+      <tr><th style="text-align:left">指标</th><th>${BET_MODELS[key].short || BET_MODELS[key].label}</th><th>市场</th><th>均匀基准</th></tr>
+      ${row('胜平负命中率 ↑', (x) => x.acc1x2, false, p0)}
+      ${row('Brier 分数 ↓', (x) => x.brier, true, f3)}
+      ${row('对数损失 ↓', (x) => x.logloss, true, f3)}
+      ${row('最可能比分命中 ↑', (x) => x.exact, false, p0)}
+      ${row('总进球 MAE ↓', (x) => x.goalMAE, true, f2)}
+    </table>
+    <p class="hint">↑ 越高越好，↓ 越低越好；绿色为三者中最优。模型在 Brier / 对数损失上低于「市场」即代表赛前预测比盘口更准。</p>
+  </div>`;
+  const calib = m.calib.map((b, i) => b.cnt
+    ? `<div class="calib-row">
+        <span class="calib-label">${i * 10}–${i * 10 + 10}%</span>
+        <span class="calib-track">
+          <span class="calib-obs" style="width:${(b.obsFreq * 100).toFixed(0)}%"></span>
+          <span class="calib-pred" style="left:${Math.min(99, b.predMean * 100).toFixed(0)}%"></span>
+        </span>
+        <span class="calib-cnt">实际${(b.obsFreq * 100).toFixed(0)}% n=${b.cnt}</span>
+      </div>` : '').join('');
+  const calibCard = `<div class="card">
+    <div class="section-title">校准曲线（${BET_MODELS[key].short || ''}）：黄线 = 模型预测概率，色条 = 实际命中频率，两者越接近越准</div>
+    ${calib || '<p class="hint">暂无足够样本。</p>'}
+  </div>`;
+  $('#backtestResult').innerHTML = table + calibCard;
+}
+
+// ---------- 投注台账 ----------
+function initLedgerTab() {
+  $('#ledAdd').addEventListener('click', () => {
+    const odds = parseFloat($('#ledOdds').value);
+    const stake = parseFloat($('#ledStake').value);
+    if (!(odds >= 1) || !(stake >= 0)) return;
+    addBet({ date: '', match: $('#ledMatch').value.trim(), pick: $('#ledPick').value.trim(), odds, stake, status: 'pending' });
+    $('#ledMatch').value = ''; $('#ledPick').value = '';
+    renderLedger();
+  });
+  $('#ledgerResult').addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.dataset.id && t.dataset.st) { setBetStatus(t.dataset.id, t.dataset.st); renderLedger(); }
+    else if (t.classList.contains('led-del')) { removeBet(t.dataset.id); renderLedger(); }
+    else if (t.id === 'ledClear') { if (confirm('确认清空全部台账记录？')) { clearLedger(); renderLedger(); } }
+  });
+}
+
+function renderLedger() {
+  const s = ledgerStats();
+  const stats = `<div class="card"><div class="led-stats">
+    <div class="led-stat"><div class="v">${s.count}</div><div class="k">记录数</div></div>
+    <div class="led-stat"><div class="v">${s.staked.toFixed(0)}</div><div class="k">已结算投入</div></div>
+    <div class="led-stat"><div class="v ${s.profit >= 0 ? 'up' : 'down'}">${s.profit >= 0 ? '+' : ''}${s.profit.toFixed(0)}</div><div class="k">盈亏</div></div>
+    <div class="led-stat"><div class="v ${s.roi >= 0 ? 'up' : 'down'}">${(s.roi * 100).toFixed(1)}%</div><div class="k">ROI</div></div>
+    <div class="led-stat"><div class="v">${(s.hitRate * 100).toFixed(0)}%</div><div class="k">命中率（${s.settled} 结算）</div></div>
+    <div class="led-stat"><div class="v">${s.pending.toFixed(0)}</div><div class="k">待开本金</div></div>
+  </div></div>`;
+  if (!LEDGER.length) {
+    $('#ledgerResult').innerHTML = stats + '<div class="card"><p class="hint">还没有记录。在上方手动记一笔，或在「投注推荐」页点各推荐旁的「记台账」。</p></div>';
+    return;
+  }
+  const rows = [...LEDGER].reverse().map((b) => `<tr>
+    <td class="team-cell">${b.match || '—'}<div class="dim">${b.pick || ''}</div></td>
+    <td>${(+b.odds).toFixed(2)}</td>
+    <td>${(+b.stake).toFixed(0)}</td>
+    <td>
+      <span class="badge ${b.status === 'win' ? 'win' : ''}" data-id="${b.id}" data-st="win">赢</span>
+      <span class="badge ${b.status === 'lose' ? 'lose' : ''}" data-id="${b.id}" data-st="lose">输</span>
+      <span class="badge ${b.status === 'pending' ? 'pending' : ''}" data-id="${b.id}" data-st="pending">待</span>
+    </td>
+    <td><button class="mini-btn led-del" data-id="${b.id}">删</button></td>
+  </tr>`).join('');
+  $('#ledgerResult').innerHTML = stats + `<div class="card">
+    <table class="standings">
+      <tr><th style="text-align:left">投注</th><th>赔率</th><th>本金</th><th>结果</th><th></th></tr>
+      ${rows}
+    </table>
+    <div style="margin-top:10px"><button id="ledClear" class="del-all">清空台账</button></div>
+  </div>`;
 }
 
 // 赛果变化后刷新所有视图
@@ -531,17 +736,24 @@ function refreshAll() {
   renderDataTable();
   renderMatch();
   if ($('#betResult').innerHTML.trim()) renderBetting();
+  if ($('#standingsResult').innerHTML.trim()) renderStandings();
+  if ($('#backtestResult').innerHTML.trim()) renderBacktest();
 }
 
 // ---------- 绑定 ----------
 initSelectors();
 initResultsTab();
 initBettingTab();
+initBettingDelegation();
+initBacktestTab();
+initLedgerTab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
 $('#mcBtn').addEventListener('click', renderTournament);
+$('#standingsBtn').addEventListener('click', renderStandings);
 renderMatch();
 renderDataTable();
 renderResultsTab();
 renderBetting();
+renderLedger();
