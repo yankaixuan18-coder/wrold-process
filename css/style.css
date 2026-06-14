@@ -282,3 +282,12 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
 .mini-btn { background: none; border: 1px solid #38bdf8; color: #38bdf8; border-radius: 6px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; }
 .real-odds { margin-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.8rem; color: #93a6c8; }
 .real-odds input { width: 56px; padding: 5px 6px; background: #0e1d3d; color: #e8eefc; border: 1px solid #2c4070; border-radius: 7px; font-size: 0.8rem; text-align: center; }
+
+/* ===== 数据源标记 ===== */
+.src-ok { color: #4ade80; font-size: 0.78rem; }
+.src-mid { color: #f7c948; font-size: 0.78rem; }
+.src-est { color: #93a6c8; font-size: 0.78rem; }
+.src-block { font-size: 0.88rem; color: #b9c8e8; margin-bottom: 8px; line-height: 1.6; }
+.src-block a { color: #38bdf8; text-decoration: none; }
+.src-block a:hover { text-decoration: underline; }
+.src-legend { margin-top: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px 16px; }

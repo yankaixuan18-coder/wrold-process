@@ -58,13 +58,17 @@
 
 更进一步的精度升级是给每队独立的「攻击力/防守力」（完整双变量泊松），以区分"对攻型"和"防守型"球队。但要做得有诚信需要真实的逐队进失球数据来拟合；仅凭世预赛数据（对手强弱差异极大）或只有 3 场小组赛会变成"假精度"，因此本版本暂未加入，留作后续在样本充足后引入。
 
-## 数据来源
+## 数据来源（真实数值 + 来源标注）
+
+每个数值在「数据源」页都带来源标记（✓ 实测/官方，≈ 单源近似，~ 推算/按排名），并列出来源链接与日期。
 
 - **分组与赛制（真实）**：2025-12-05 华盛顿抽签 + 2026 年 3 月附加赛后的最终 48 强（波黑、瑞典、土耳其、捷克与刚果（金）、伊拉克附加赛晋级；意大利、丹麦出局）；32 强对阵采用官方 M73–M88 模板，最佳小组第三按官方限定槽位回溯匹配。
-- **FIFA 积分**：2026 年 4–6 月排名。头部球队（法国/西班牙 1876.4/阿根廷/英格兰/葡萄牙的位次）为媒体报道证实，其余按最近公开排名估算。
-- **夺冠赔率**：2026 年 6 月开赛前 BetMGM / FanDuel 行情。西班牙 +450、法国 +500、英格兰 +700、巴西 +800、葡萄牙/阿根廷 +900、德国 +1400、荷兰 +2000、挪威 +3500、哥伦比亚 +4000、乌拉圭 +6500 为报道证实，其余为市场惯例估算。
-- **Elo 分**：按开赛前水平估算。
-- 全部数值都在 `js/data.js`，可手动修改，刷新页面即生效。
+- **FIFA 积分（2026-04-01）**：48 队中 **41 队为官方公布积分**（如法国 1877.32、西班牙 1876.40、阿根廷 1874.81…），来源 [FIFA 官方排名](https://inside.fifa.com/fifa-world-ranking/men) / [ESPN Top-50](https://www.espn.com/soccer/story/_/id/46664763/fifa-mens-top-50-world-rankings) / [football-ranking.com](https://football-ranking.com/fifa_rankings)；其余 7 队（伊朗、卡塔尔、伊拉克、南非、沙特、约旦、波黑）仅知排名，按相邻名次插值（标 `~`）。
+- **Elo 评分**：48 队中 **18 队为实测**（2026-01-19 快照，来源 [eloratings.net](https://www.eloratings.net/) / [Wikipedia: World Football Elo Ratings](https://en.wikipedia.org/wiki/World_Football_Elo_Ratings) / [footballratings.org](https://www.footballratings.org/)）；其余 30 队为**可复现推算**：用各组平均 Elo（footrankings 公布，覆盖全 48 队）乘 4 减去组内实测值后，按各队 FIFA 积分比例分配——这样既还原了各组平均，又遵循 FIFA 排序，避免了凭空估值（标 `~`）。
+- **夺冠赔率（2026-06 开赛前）**：BetMGM / FanDuel 行情。西班牙 +450、法国 +500、英格兰 +700、巴西 +800、葡萄牙/阿根廷 +900、德国 +1400、荷兰 +2000、挪威 +3500、哥伦比亚 +4000、乌拉圭 +6500 为报道证实，其余为市场惯例估算。来源 [FOX Sports](https://www.foxsports.com/stories/soccer/world-cup-2026-champion-odds) / [ESPN](https://www.espn.com/soccer/story/_/id/49025269/spain-france-lead-world-cup-odds-usa-bettors-back-home-team)。
+- 全部数值与来源都在 `js/data.js`（含 `srcElo` / `srcFifa` 标记与 `RATINGS_META`），可手动修改，刷新页面即生效。
+
+> 说明：Elo 的权威源 eloratings.net 对自动抓取返回 403，无法一次性取全 48 队当日值，因此采用「实测优先 + 透明推算补全」的方式，并逐队标注来源等级——这比给全部 48 队都填估算值更诚实。若你能提供完整当日 Elo 快照，替换 `js/data.js` 中的 `elo` 字段并把 `srcElo` 改为 `'src'` 即可。
 
 ## 使用方法
 

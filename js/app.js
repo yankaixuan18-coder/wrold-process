@@ -291,6 +291,14 @@ function renderTournament() {
 }
 
 // ---------- 数据源一览 ----------
+const eloMark = (s) => s === 'src'
+  ? '<span class="src-ok" title="实测（Elo 源快照）">✓</span>'
+  : s === 'src~' ? '<span class="src-mid" title="单一来源近似">≈</span>'
+    : '<span class="src-est" title="推算：组均值 + FIFA 比例分配">~</span>';
+const fifaMark = (s) => s === 'exact'
+  ? '<span class="src-ok" title="官方公布积分">✓</span>'
+  : '<span class="src-est" title="仅知排名，按相邻名次插值">~</span>';
+
 function renderDataTable() {
   const rows = Object.values(TEAMS)
     .map((t) => {
@@ -310,8 +318,8 @@ function renderDataTable() {
       <tr>
         <td>${idx + 1}</td>
         <td class="team-cell">${teamLabel(t)} <span class="dim">${t.group}组${t.host ? ' · 东道主' : ''}</span></td>
-        <td class="pct">${t.elo}</td>
-        <td class="pct">${t.fifa}</td>
+        <td class="pct">${t.elo} ${eloMark(t.srcElo)}</td>
+        <td class="pct">${Number.isInteger(t.fifa) ? t.fifa : t.fifa.toFixed(1)} ${fifaMark(t.srcFifa)}</td>
         <td class="pct">+${t.odds.toLocaleString()}</td>
         <td class="pct">${pct(100 / (t.odds + 100) / 100, 2)}</td>
         <td class="pct">${adj === 0 ? '—' : (adj > 0 ? '<span class="up">+' : '<span class="down">') + adj.toFixed(0) + '</span>'}</td>
@@ -323,6 +331,22 @@ function renderDataTable() {
       <tr><th>#</th><th style="text-align:left">球队</th><th>Elo 分</th><th>FIFA 积分</th><th>夺冠赔率</th><th>隐含夺冠率</th><th>赛果修正</th><th>综合实力</th></tr>
       ${rows}
     </table>`;
+
+  // 数据来源与日期
+  const block = (m) => `<div class="src-block"><strong>${m.label}</strong>（${m.asOf}）：${m.sources.map((s) => `<a href="${s.url}" target="_blank" rel="noopener">${s.name}</a>`).join(' · ')}</div>`;
+  const srcCount = Object.values(TEAMS).filter((t) => t.srcElo === 'src' || t.srcElo === 'src~').length;
+  const exactCount = Object.values(TEAMS).filter((t) => t.srcFifa === 'exact').length;
+  const legend = Object.entries(RATINGS_META.legend).map(([k, v]) => `<span class="dim">${k} = ${v}</span>`).join('　');
+  $('#dataSources').innerHTML = `
+    <div class="card">
+      <div class="section-title">数据来源与日期</div>
+      ${block(RATINGS_META.elo)}
+      ${block(RATINGS_META.fifa)}
+      ${block(RATINGS_META.odds)}
+      <p class="hint">实测占比：Elo ${srcCount}/48 实测，其余 ${48 - srcCount} 队为推算；FIFA ${exactCount}/48 为官方公布积分，其余 ${48 - exactCount} 队按排名插值。</p>
+      <div class="src-legend">${legend}</div>
+      <p class="hint">所有数值都在 <code>js/data.js</code>，可手动修改，刷新即生效。</p>
+    </div>`;
 }
 
 // ---------- 实际赛果录入 ----------
