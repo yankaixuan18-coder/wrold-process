@@ -52,9 +52,11 @@
 
 1. **配置**：在页面填入你自己的 API Key（三选一：DeepSeek / Claude / GPT），模型可自定义，默认 `deepseek-chat` / `claude-opus-4-8` / `gpt-4o`。
 2. **分析**：选比赛日、可选粘贴最新情报（伤病/轮换/出线形势/新闻），AI 对当日未赛场次逐场输出结构化判断：双方预期进球的缩放系数、求胜动机、**假球/默契风险**及其可能比分、关键因素。
-   - **联网检索（可选）**：两种方式拿最新信息——
-     - **一个 Key 搞定（推荐）**：服务商选 **OpenRouter**，模型 `deepseek/deepseek-chat`（可改 `deepseek/deepseek-v3.2` 等），勾选联网即用 OpenRouter 自带的 web 插件（`plugins:[{id:'web'}]`），一个 OpenRouter Key 同时拿到 DeepSeek + 联网，引用来源取自返回的 `annotations`。
-     - **DeepSeek/GPT/Claude 直连 + Tavily**：这些直连 API 无联网搜索，需另填 [Tavily](https://tavily.com) Key 作前置检索层（topic=news、近 21 天），把概要与来源喂给模型。
+   - **检索来源（可选，4 选 1）**：纯静态网页受 CORS 限制无法直接抓取谷歌/必应，但可用以下来源拿最新信息——
+     - **维基百科（自制·免 Key·推荐）**：我们自己写的检索（`js/retriever.js`），直连维基开放 API（`w/api.php?origin=*` 搜索 + `api/rest_v1/page/summary` 取摘要），**不走任何检索服务商、不用 Key**。检索双方国家队 + 该组世界杯词条，适合球队资料与赛事进程；同日伤病/首发覆盖有限。
+     - **自定义端点（自建）**：填你自托管的 [SearXNG](https://github.com/searxng/searxng) 等检索 URL（用 `{q}` 占位查询词，返回 JSON），完全自主可控，不依赖商业服务商。
+     - **OpenRouter 自带**：服务商选 OpenRouter 时，用其 web 插件（`plugins:[{id:'web'}]`），一个 Key 同时拿到 DeepSeek + 联网，来源取自返回 `annotations`。
+     - **Tavily**：填 [Tavily](https://tavily.com) Key 作前置检索（topic=news、近 21 天）。
      结果卡片都会列出引用来源链接。
 3. **接入模型**：开启「在所有预测/模拟/投注中应用 AI 调整」后，
    - 预期进球按动机系数缩放（如摆烂队 ×0.5）；
@@ -123,7 +125,8 @@ js/betting.js         投注价值分析（赔率合成 / EV / 稳·冲推荐 / 
 js/backtest.js        回测校准（时序回放 / Brier / 对数损失 / 校准曲线）
 js/standings.js       实时小组积分榜（FIFA 规则排序）
 js/ledger.js          投注台账（盈亏 / ROI 统计）
-js/ai.js              AI 比赛分析（DeepSeek/Claude/GPT 客户端 + 评估存储 + 模型接入）
+js/retriever.js       自制检索（维基百科免 Key + 自定义端点，不走检索服务商）
+js/ai.js              AI 比赛分析（DeepSeek/Claude/GPT/OpenRouter 客户端 + 检索路由 + 模型接入）
 js/app.js             页面交互
 ```
 

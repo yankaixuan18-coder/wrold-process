@@ -153,11 +153,22 @@
         <span id="aiCfgState" class="status"></span>
       </div>
       <div class="options">
-        <label>Tavily Key：</label>
-        <input type="password" id="aiTavily" class="text-input" placeholder="tvly-...（联网检索，可选，仅存本地）">
-        <label class="opt"><input type="checkbox" id="aiWeb"> <strong>分析前用 Tavily 联网搜最新情报</strong></label>
+        <label>检索来源：</label>
+        <select id="aiWebSource">
+          <option value="off">关闭（仅模型知识 / 手动情报）</option>
+          <option value="wiki">维基百科（自制·免 Key·推荐）</option>
+          <option value="custom">自定义端点（自建 SearXNG 等）</option>
+          <option value="tavily">Tavily（需 Key）</option>
+          <option value="openrouter">OpenRouter 自带（仅选 OpenRouter 时）</option>
+        </select>
       </div>
-      <p class="hint">想<strong>一个 Key 搞定 DeepSeek + 联网</strong>：服务商选 <strong>OpenRouter</strong>，模型默认 <code>deepseek/deepseek-chat</code>（可改 <code>deepseek/deepseek-v3.2</code> 等），勾选下方联网即用其自带搜索，<strong>无需 Tavily</strong>。<br>若用 DeepSeek/GPT/Claude 直连，则需另填 Tavily Key（<a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> 免费额度）作检索层。所有 Key 仅存本地浏览器。</p>
+      <div class="options">
+        <label>Tavily Key：</label>
+        <input type="password" id="aiTavily" class="text-input" placeholder="tvly-...（仅 Tavily 用，存本地）">
+        <label>自定义检索 URL：</label>
+        <input type="text" id="aiCustomUrl" class="text-input" placeholder="https://你的searxng/search?q={q}&format=json">
+      </div>
+      <p class="hint"><strong>维基百科</strong> = 我们<strong>自制、免 Key、不走任何检索服务商</strong>的检索（直连维基开放 API），适合球队资料与赛事进程，同日伤病/首发覆盖有限。要全网最新新闻可选 Tavily、OpenRouter 自带，或自建 <a href="https://github.com/searxng/searxng" target="_blank" rel="noopener">SearXNG</a> 后填「自定义检索 URL」（用 <code>{q}</code> 占位查询词，返回 JSON）。所有 Key 仅存本地浏览器。</p>
     </div>
     <div class="card">
       <div class="section-title">② 分析与应用</div>

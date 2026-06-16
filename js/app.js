@@ -768,7 +768,8 @@ function initAITab() {
   $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[AI_CFG.provider].defaultModel;
   $('#aiKey').value = AI_CFG.apiKey || '';
   $('#aiTavily').value = AI_CFG.tavilyKey || '';
-  $('#aiWeb').checked = !!AI_CFG.web;
+  $('#aiCustomUrl').value = AI_CFG.customSearchUrl || '';
+  $('#aiWebSource').value = AI_CFG.webSource || 'off';
   $('#aiApply').checked = aiApplyOn();
   updateAICfgState();
 
@@ -793,10 +794,12 @@ function initAITab() {
     AI_CFG.model = $('#aiModel').value.trim();
     AI_CFG.apiKey = $('#aiKey').value.trim();
     AI_CFG.tavilyKey = $('#aiTavily').value.trim();
+    AI_CFG.customSearchUrl = $('#aiCustomUrl').value.trim();
     saveAICfg();
     updateAICfgState();
   });
-  $('#aiWeb').addEventListener('change', () => { AI_CFG.web = $('#aiWeb').checked; saveAICfg(); updateAICfgState(); });
+  $('#aiWebSource').addEventListener('change', () => { AI_CFG.webSource = $('#aiWebSource').value; saveAICfg(); updateAICfgState(); });
+  $('#aiCustomUrl').addEventListener('change', () => { AI_CFG.customSearchUrl = $('#aiCustomUrl').value.trim(); saveAICfg(); updateAICfgState(); });
   $('#aiApply').addEventListener('change', () => { setAIApply($('#aiApply').checked); refreshAll(); renderAI(); });
   $('#aiAnalyzeDay').addEventListener('click', analyzeDay);
   $('#aiClear').addEventListener('click', () => {
@@ -806,17 +809,24 @@ function initAITab() {
   refreshManFixtures();
 }
 
+function aiWebStatus() {
+  const src = AI_CFG.webSource || 'off';
+  const isOR = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
+  if (src === 'off') return '';
+  if (src === 'wiki') return ' · <span class="up">检索：维基(自制免Key)</span>';
+  if (src === 'custom') return AI_CFG.customSearchUrl
+    ? ' · <span class="up">检索：自定义端点</span>' : ' · <span class="down">自定义检索缺 URL</span>';
+  if (src === 'tavily') return AI_CFG.tavilyKey
+    ? ' · <span class="up">检索：Tavily</span>' : ' · <span class="down">Tavily 缺 Key</span>';
+  if (src === 'openrouter') return isOR
+    ? ' · <span class="up">检索：OpenRouter 自带</span>' : ' · <span class="down">该来源仅在选 OpenRouter 时可用</span>';
+  return '';
+}
 function updateAICfgState() {
   const ok = !!AI_CFG.apiKey;
-  const builtin = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
-  const webReady = AI_CFG.web && (builtin || AI_CFG.tavilyKey);
-  const web = AI_CFG.web
-    ? (webReady ? ` · <span class="up">联网开${builtin ? '（自带）' : '（Tavily）'}</span>`
-      : ' · <span class="down">联网已勾选但缺 Tavily Key</span>')
-    : '';
   $('#aiCfgState').innerHTML = (ok
     ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
-    : '<span class="down">未配置 Key（可用下方手动录入）</span>') + web;
+    : '<span class="down">未配置 Key（可用下方手动录入）</span>') + aiWebStatus();
 }
 
 function refreshManFixtures() {
@@ -840,7 +850,7 @@ async function analyzeDay() {
   const btn = $('#aiAnalyzeDay');
   btn.disabled = true;
   let done = 0;
-  const webTag = (AI_CFG.web && ((AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb || AI_CFG.tavilyKey)) ? '（含联网检索）' : '';
+  const webTag = (AI_CFG.webSource && AI_CFG.webSource !== 'off') ? '（含检索）' : '';
   for (const f of fixtures) {
     $('#aiStatus').textContent = `分析中${webTag} ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
     try {

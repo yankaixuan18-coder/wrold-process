@@ -42,7 +42,7 @@ const AI_PROVIDERS = {
   },
 };
 
-const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', web: false };
+const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', webSource: 'off', customSearchUrl: '' };
 const AI_ASSESS = {}; // 'a|b' -> assessment（按录入朝向存储）
 
 (function loadAICfg() {
@@ -199,8 +199,8 @@ async function callLLM(system, user) {
     temperature: 0.4,
     max_tokens: 1500,
   };
-  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：开启 web 时挂 web 插件
-  if (prov.builtinWeb && AI_CFG.web) body.plugins = [{ id: 'web', max_results: 5 }];
+  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：检索来源选 openrouter 时挂 web 插件
+  if (prov.builtinWeb && AI_CFG.webSource === 'openrouter') body.plugins = [{ id: 'web', max_results: 5 }];
   res = await fetch(prov.endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + AI_CFG.apiKey },
@@ -252,26 +252,37 @@ async function webContextForMatch(A, B, fixture) {
 async function analyzeMatch(fixture, extraContext) {
   const A = TEAMS[fixture.a], B = TEAMS[fixture.b];
   const prov = AI_PROVIDERS[AI_CFG.provider] || {};
+  const src = AI_CFG.webSource || 'off';
   let ctx = extraContext || '';
   let sources = [];
   let webUsed = false;
-  // 非 OpenRouter（DeepSeek/GPT/Claude 直连）：用 Tavily 作前置检索
-  if (AI_CFG.web && !prov.builtinWeb && AI_CFG.tavilyKey) {
+
+  // 前置检索（OpenRouter 自带联网在 callLLM 内处理，这里不预检索）
+  async function preSearch() {
+    if (src === 'wiki') return wikiContextForMatch(A, B, fixture);            // 自制·免 Key
+    if (src === 'custom') return customContextForMatch(A, B, fixture, AI_CFG.customSearchUrl); // 自建端点
+    if (src === 'tavily' && AI_CFG.tavilyKey) return webContextForMatch(A, B, fixture);        // Tavily
+    return null;
+  }
+  if (src === 'wiki' || src === 'custom' || (src === 'tavily' && AI_CFG.tavilyKey)) {
     try {
-      const w = await webContextForMatch(A, B, fixture);
-      ctx = (ctx ? ctx + '\n\n' : '') + '【Tavily 联网检索（最新）】\n' + w.text;
-      sources = w.sources;
-      webUsed = true;
+      const w = await preSearch();
+      if (w) {
+        const tag = src === 'wiki' ? '维基百科检索' : src === 'custom' ? '自定义检索' : 'Tavily 检索';
+        ctx = (ctx ? ctx + '\n\n' : '') + `【${tag}（最新）】\n` + w.text;
+        sources = w.sources; webUsed = true;
+      }
     } catch (e) {
-      ctx = (ctx ? ctx + '\n\n' : '') + '【联网检索失败，已忽略】' + e.message;
+      ctx = (ctx ? ctx + '\n\n' : '') + '【检索失败，已忽略】' + e.message;
     }
   }
+
   const { system, user } = buildAIPrompt(fixture, ctx);
   const out = await callLLM(system, user); // { text, sources }
   const assess = normalizeAssessment(parseAIJson(out.text), fixture,
     { provider: AI_CFG.provider, model: AI_CFG.model || AI_PROVIDERS[AI_CFG.provider].defaultModel });
   // OpenRouter 自带联网：来源取自模型返回的引用注解
-  if (AI_CFG.web && prov.builtinWeb) { sources = out.sources; webUsed = true; }
+  if (src === 'openrouter' && prov.builtinWeb) { sources = out.sources; webUsed = true; }
   assess.sources = sources;
   assess.web = webUsed;
   AI_ASSESS[fixture.a + '|' + fixture.b] = assess;

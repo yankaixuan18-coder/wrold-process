@@ -471,11 +471,22 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
         <span id="aiCfgState" class="status"></span>
       </div>
       <div class="options">
-        <label>Tavily Key：</label>
-        <input type="password" id="aiTavily" class="text-input" placeholder="tvly-...（联网检索，可选，仅存本地）">
-        <label class="opt"><input type="checkbox" id="aiWeb"> <strong>分析前用 Tavily 联网搜最新情报</strong></label>
+        <label>检索来源：</label>
+        <select id="aiWebSource">
+          <option value="off">关闭（仅模型知识 / 手动情报）</option>
+          <option value="wiki">维基百科（自制·免 Key·推荐）</option>
+          <option value="custom">自定义端点（自建 SearXNG 等）</option>
+          <option value="tavily">Tavily（需 Key）</option>
+          <option value="openrouter">OpenRouter 自带（仅选 OpenRouter 时）</option>
+        </select>
       </div>
-      <p class="hint">想<strong>一个 Key 搞定 DeepSeek + 联网</strong>：服务商选 <strong>OpenRouter</strong>，模型默认 <code>deepseek/deepseek-chat</code>（可改 <code>deepseek/deepseek-v3.2</code> 等），勾选下方联网即用其自带搜索，<strong>无需 Tavily</strong>。<br>若用 DeepSeek/GPT/Claude 直连，则需另填 Tavily Key（<a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> 免费额度）作检索层。所有 Key 仅存本地浏览器。</p>
+      <div class="options">
+        <label>Tavily Key：</label>
+        <input type="password" id="aiTavily" class="text-input" placeholder="tvly-...（仅 Tavily 用，存本地）">
+        <label>自定义检索 URL：</label>
+        <input type="text" id="aiCustomUrl" class="text-input" placeholder="https://你的searxng/search?q={q}&format=json">
+      </div>
+      <p class="hint"><strong>维基百科</strong> = 我们<strong>自制、免 Key、不走任何检索服务商</strong>的检索（直连维基开放 API），适合球队资料与赛事进程，同日伤病/首发覆盖有限。要全网最新新闻可选 Tavily、OpenRouter 自带，或自建 <a href="https://github.com/searxng/searxng" target="_blank" rel="noopener">SearXNG</a> 后填「自定义检索 URL」（用 <code>{q}</code> 占位查询词，返回 JSON）。所有 Key 仅存本地浏览器。</p>
     </div>
     <div class="card">
       <div class="section-title">② 分析与应用</div>
@@ -1703,6 +1714,83 @@ function remainingOpponents(code) {
   return out;
 }
 
+// ===== js/retriever.js =====
+// 自制检索模块（不走 Tavily / OpenRouter 等检索服务商）
+// 直接调用对浏览器开放 CORS、且免 Key 的公共接口：
+//   · wiki    : 维基百科 / MediaWiki —— 球队资料、2026 世界杯小组词条（含赛况/重要事件）
+//   · custom  : 用户自建端点（如自托管 SearXNG），URL 模板含 {q}
+// 说明：纯静态网页受 CORS 限制，无法直接抓取谷歌/必应等搜索引擎；维基类开放 API 可直连。
+// 维基百科对同日伤病/首发等突发新闻覆盖有限，但球队背景与赛事进程是可靠的。
+
+// 在维基百科搜索最匹配的词条标题（action API，origin=* 开启匿名 CORS）
+async function wikiSearchTitle(query, lang = 'en') {
+  const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=1&srsearch=` + encodeURIComponent(query);
+  const r = await fetch(url);
+  const d = await r.json().catch(() => ({}));
+  const hit = d.query && d.query.search && d.query.search[0];
+  return hit ? hit.title : null;
+}
+
+// 取词条摘要（REST summary，返回 Access-Control-Allow-Origin: *）
+async function wikiSummary(title, lang = 'en') {
+  const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/` + encodeURIComponent(title.replace(/ /g, '_'));
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const d = await r.json().catch(() => null);
+  if (!d || !d.extract) return null;
+  return {
+    title: d.title || title,
+    extract: d.extract,
+    url: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page)
+      || `https://${lang}.wikipedia.org/wiki/` + encodeURIComponent(title.replace(/ /g, '_')),
+  };
+}
+
+// 为一场比赛检索：双方国家队 + 该组世界杯词条
+async function wikiContextForMatch(A, B, fixture) {
+  const targets = [
+    `${A.en} national football team`,
+    `${B.en} national football team`,
+    `2026 FIFA World Cup Group ${fixture.group}`,
+  ];
+  const lines = [], sources = [];
+  for (const t of targets) {
+    try {
+      const title = (await wikiSearchTitle(t)) || t;
+      const s = await wikiSummary(title);
+      if (s && s.extract) {
+        lines.push(`【${s.title}】${s.extract.slice(0, 400)}`);
+        sources.push({ title: s.title, url: s.url });
+      }
+    } catch (e) { /* 跳过单条失败 */ }
+  }
+  if (!lines.length) throw new Error('维基检索无结果（可能被 CORS/网络拦截）');
+  return { text: lines.join('\n'), sources };
+}
+
+// 自定义检索端点（自建 SearXNG 等）。URL 模板含 {q}，期望返回 JSON。
+async function customContextForMatch(A, B, fixture, urlTemplate) {
+  if (!urlTemplate) throw new Error('未配置自定义检索 URL');
+  const q = `${A.en} vs ${B.en} 2026 World Cup team news injuries lineup`;
+  const url = urlTemplate.includes('{q}')
+    ? urlTemplate.replace('{q}', encodeURIComponent(q))
+    : urlTemplate + encodeURIComponent(q);
+  const r = await fetch(url, { headers: { accept: 'application/json' } });
+  const d = await r.json().catch(() => null);
+  if (!d) throw new Error('自定义检索返回非 JSON');
+  const arr = d.results || d.items || d.organic || d.data || [];
+  const lines = [], sources = [];
+  for (const it of arr.slice(0, 5)) {
+    const title = it.title || it.name || '';
+    const link = it.url || it.link || it.href || '';
+    const content = it.content || it.snippet || it.description || it.text || '';
+    lines.push(`- ${title}：${String(content).slice(0, 300)}（${link}）`);
+    if (link) sources.push({ title: title || link, url: link });
+  }
+  if (!lines.length) throw new Error('自定义检索无结果');
+  return { text: lines.join('\n'), sources };
+}
+
 // ===== js/ai.js =====
 // AI 比赛分析模块
 // 用大模型（DeepSeek / Claude / GPT）结合最新情报与赛况，对单场比赛输出结构化判断：
@@ -1748,7 +1836,7 @@ const AI_PROVIDERS = {
   },
 };
 
-const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', web: false };
+const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', webSource: 'off', customSearchUrl: '' };
 const AI_ASSESS = {}; // 'a|b' -> assessment（按录入朝向存储）
 
 (function loadAICfg() {
@@ -1905,8 +1993,8 @@ async function callLLM(system, user) {
     temperature: 0.4,
     max_tokens: 1500,
   };
-  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：开启 web 时挂 web 插件
-  if (prov.builtinWeb && AI_CFG.web) body.plugins = [{ id: 'web', max_results: 5 }];
+  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：检索来源选 openrouter 时挂 web 插件
+  if (prov.builtinWeb && AI_CFG.webSource === 'openrouter') body.plugins = [{ id: 'web', max_results: 5 }];
   res = await fetch(prov.endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + AI_CFG.apiKey },
@@ -1958,26 +2046,37 @@ async function webContextForMatch(A, B, fixture) {
 async function analyzeMatch(fixture, extraContext) {
   const A = TEAMS[fixture.a], B = TEAMS[fixture.b];
   const prov = AI_PROVIDERS[AI_CFG.provider] || {};
+  const src = AI_CFG.webSource || 'off';
   let ctx = extraContext || '';
   let sources = [];
   let webUsed = false;
-  // 非 OpenRouter（DeepSeek/GPT/Claude 直连）：用 Tavily 作前置检索
-  if (AI_CFG.web && !prov.builtinWeb && AI_CFG.tavilyKey) {
+
+  // 前置检索（OpenRouter 自带联网在 callLLM 内处理，这里不预检索）
+  async function preSearch() {
+    if (src === 'wiki') return wikiContextForMatch(A, B, fixture);            // 自制·免 Key
+    if (src === 'custom') return customContextForMatch(A, B, fixture, AI_CFG.customSearchUrl); // 自建端点
+    if (src === 'tavily' && AI_CFG.tavilyKey) return webContextForMatch(A, B, fixture);        // Tavily
+    return null;
+  }
+  if (src === 'wiki' || src === 'custom' || (src === 'tavily' && AI_CFG.tavilyKey)) {
     try {
-      const w = await webContextForMatch(A, B, fixture);
-      ctx = (ctx ? ctx + '\n\n' : '') + '【Tavily 联网检索（最新）】\n' + w.text;
-      sources = w.sources;
-      webUsed = true;
+      const w = await preSearch();
+      if (w) {
+        const tag = src === 'wiki' ? '维基百科检索' : src === 'custom' ? '自定义检索' : 'Tavily 检索';
+        ctx = (ctx ? ctx + '\n\n' : '') + `【${tag}（最新）】\n` + w.text;
+        sources = w.sources; webUsed = true;
+      }
     } catch (e) {
-      ctx = (ctx ? ctx + '\n\n' : '') + '【联网检索失败，已忽略】' + e.message;
+      ctx = (ctx ? ctx + '\n\n' : '') + '【检索失败，已忽略】' + e.message;
     }
   }
+
   const { system, user } = buildAIPrompt(fixture, ctx);
   const out = await callLLM(system, user); // { text, sources }
   const assess = normalizeAssessment(parseAIJson(out.text), fixture,
     { provider: AI_CFG.provider, model: AI_CFG.model || AI_PROVIDERS[AI_CFG.provider].defaultModel });
   // OpenRouter 自带联网：来源取自模型返回的引用注解
-  if (AI_CFG.web && prov.builtinWeb) { sources = out.sources; webUsed = true; }
+  if (src === 'openrouter' && prov.builtinWeb) { sources = out.sources; webUsed = true; }
   assess.sources = sources;
   assess.web = webUsed;
   AI_ASSESS[fixture.a + '|' + fixture.b] = assess;
@@ -2775,7 +2874,8 @@ function initAITab() {
   $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[AI_CFG.provider].defaultModel;
   $('#aiKey').value = AI_CFG.apiKey || '';
   $('#aiTavily').value = AI_CFG.tavilyKey || '';
-  $('#aiWeb').checked = !!AI_CFG.web;
+  $('#aiCustomUrl').value = AI_CFG.customSearchUrl || '';
+  $('#aiWebSource').value = AI_CFG.webSource || 'off';
   $('#aiApply').checked = aiApplyOn();
   updateAICfgState();
 
@@ -2800,10 +2900,12 @@ function initAITab() {
     AI_CFG.model = $('#aiModel').value.trim();
     AI_CFG.apiKey = $('#aiKey').value.trim();
     AI_CFG.tavilyKey = $('#aiTavily').value.trim();
+    AI_CFG.customSearchUrl = $('#aiCustomUrl').value.trim();
     saveAICfg();
     updateAICfgState();
   });
-  $('#aiWeb').addEventListener('change', () => { AI_CFG.web = $('#aiWeb').checked; saveAICfg(); updateAICfgState(); });
+  $('#aiWebSource').addEventListener('change', () => { AI_CFG.webSource = $('#aiWebSource').value; saveAICfg(); updateAICfgState(); });
+  $('#aiCustomUrl').addEventListener('change', () => { AI_CFG.customSearchUrl = $('#aiCustomUrl').value.trim(); saveAICfg(); updateAICfgState(); });
   $('#aiApply').addEventListener('change', () => { setAIApply($('#aiApply').checked); refreshAll(); renderAI(); });
   $('#aiAnalyzeDay').addEventListener('click', analyzeDay);
   $('#aiClear').addEventListener('click', () => {
@@ -2813,17 +2915,24 @@ function initAITab() {
   refreshManFixtures();
 }
 
+function aiWebStatus() {
+  const src = AI_CFG.webSource || 'off';
+  const isOR = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
+  if (src === 'off') return '';
+  if (src === 'wiki') return ' · <span class="up">检索：维基(自制免Key)</span>';
+  if (src === 'custom') return AI_CFG.customSearchUrl
+    ? ' · <span class="up">检索：自定义端点</span>' : ' · <span class="down">自定义检索缺 URL</span>';
+  if (src === 'tavily') return AI_CFG.tavilyKey
+    ? ' · <span class="up">检索：Tavily</span>' : ' · <span class="down">Tavily 缺 Key</span>';
+  if (src === 'openrouter') return isOR
+    ? ' · <span class="up">检索：OpenRouter 自带</span>' : ' · <span class="down">该来源仅在选 OpenRouter 时可用</span>';
+  return '';
+}
 function updateAICfgState() {
   const ok = !!AI_CFG.apiKey;
-  const builtin = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
-  const webReady = AI_CFG.web && (builtin || AI_CFG.tavilyKey);
-  const web = AI_CFG.web
-    ? (webReady ? ` · <span class="up">联网开${builtin ? '（自带）' : '（Tavily）'}</span>`
-      : ' · <span class="down">联网已勾选但缺 Tavily Key</span>')
-    : '';
   $('#aiCfgState').innerHTML = (ok
     ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
-    : '<span class="down">未配置 Key（可用下方手动录入）</span>') + web;
+    : '<span class="down">未配置 Key（可用下方手动录入）</span>') + aiWebStatus();
 }
 
 function refreshManFixtures() {
@@ -2847,7 +2956,7 @@ async function analyzeDay() {
   const btn = $('#aiAnalyzeDay');
   btn.disabled = true;
   let done = 0;
-  const webTag = (AI_CFG.web && ((AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb || AI_CFG.tavilyKey)) ? '（含联网检索）' : '';
+  const webTag = (AI_CFG.webSource && AI_CFG.webSource !== 'off') ? '（含检索）' : '';
   for (const f of fixtures) {
     $('#aiStatus').textContent = `分析中${webTag} ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
     try {
