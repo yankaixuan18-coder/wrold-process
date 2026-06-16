@@ -50,7 +50,7 @@
 
 纯泊松模型有个根本盲区：它假设每队都全力争胜，**抓不到「非竞争性比赛」**——已出线/出局的 dead rubber、末轮双方都满意某比分而默契踢平、主力轮换、摆烂。「AI 分析」页用大模型补上这块：
 
-1. **配置**：在页面填入你自己的 API Key（三选一：DeepSeek / Claude / GPT），模型可自定义，默认 `deepseek-chat` / `claude-opus-4-8` / `gpt-4o`。
+1. **配置**：在页面填入你自己的 API Key，服务商可选 **DeepSeek / GPT / Claude 官方直连**，或路由商 **OpenRouter / Requesty**（一个 Key 用多模型）。模型可自定义，默认值分别为 `deepseek-chat` / `gpt-4o` / `claude-opus-4-8` / `deepseek/deepseek-chat`（OpenRouter）/ `deepseek/deepseek-v4-pro`（Requesty）。注意：**服务商与 Key 必须匹配**——OpenRouter 用 `sk-or-` 开头、Requesty 用 `rqsty-` 开头、DeepSeek 官方用 `sk-` 开头，填错会报 “Missing Authentication header” 之类的鉴权错误。
 2. **分析**：选比赛日、可选粘贴最新情报（伤病/轮换/出线形势/新闻），AI 对当日未赛场次逐场输出结构化判断：双方预期进球的缩放系数、求胜动机、**假球/默契风险**及其可能比分、关键因素。
    - **检索来源（可选，4 选 1）**：纯静态网页受 CORS 限制无法直接抓取谷歌/必应，但可用以下来源拿最新信息——
      - **维基百科（自制·免 Key·推荐）**：我们自己写的检索（`js/retriever.js`），直连维基开放 API（`w/api.php?origin=*` 搜索 + `api/rest_v1/page/summary` 取摘要），**不走任何检索服务商、不用 Key**。检索双方国家队 + 该组世界杯词条，适合球队资料与赛事进程；同日伤病/首发覆盖有限。

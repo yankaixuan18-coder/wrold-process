@@ -1834,6 +1834,13 @@ const AI_PROVIDERS = {
     kind: 'openai',
     builtinWeb: true, // 开启 web 时用 OpenRouter 自带联网插件，无需 Tavily
   },
+  requesty: {
+    label: 'Requesty（DeepSeek 等，一个Key）',
+    endpoint: 'https://router.requesty.ai/v1/chat/completions',
+    defaultModel: 'deepseek/deepseek-v4-pro',
+    kind: 'openai',
+    // 无自带联网：联网请用「维基百科/自定义/Tavily」检索来源
+  },
 };
 
 const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', webSource: 'off', customSearchUrl: '' };
@@ -2001,7 +2008,14 @@ async function callLLM(system, user) {
     body: JSON.stringify(body),
   });
   data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(prov.label + ' 接口错误：' + (data.error ? (data.error.message || JSON.stringify(data.error)) : res.status));
+  if (!res.ok) {
+    const em = data.error ? (data.error.message || JSON.stringify(data.error)) : ('HTTP ' + res.status);
+    const authIssue = res.status === 401 || res.status === 403 || /auth|api[_ ]?key|credential/i.test(em);
+    const hint = authIssue
+      ? '（请确认「服务商」与「API Key」匹配并已点保存：OpenRouter 用 sk-or- 开头，Requesty 用 rqsty- 开头，DeepSeek 官方用 sk- 开头）'
+      : '';
+    throw new Error(prov.label + ' 接口错误：' + em + hint);
+  }
   const msg = data.choices && data.choices[0] ? data.choices[0].message : null;
   const sources = msg && Array.isArray(msg.annotations)
     ? msg.annotations.filter((a) => a.type === 'url_citation' && a.url_citation)
