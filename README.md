@@ -52,7 +52,10 @@
 
 1. **配置**：在页面填入你自己的 API Key（三选一：DeepSeek / Claude / GPT），模型可自定义，默认 `deepseek-chat` / `claude-opus-4-8` / `gpt-4o`。
 2. **分析**：选比赛日、可选粘贴最新情报（伤病/轮换/出线形势/新闻），AI 对当日未赛场次逐场输出结构化判断：双方预期进球的缩放系数、求胜动机、**假球/默契风险**及其可能比分、关键因素。
-   - **联网检索（可选）**：DeepSeek 直连 API 无联网搜索，故接入 [Tavily](https://tavily.com)（专为 LLM 设计、浏览器可直连）作检索层。填入 Tavily Key 并勾选「联网搜最新情报」后，每场分析前会先用 Tavily 搜该场最新新闻（topic=news、近 21 天），把概要与来源喂给模型，结果卡片会列出引用来源链接。
+   - **联网检索（可选）**：两种方式拿最新信息——
+     - **一个 Key 搞定（推荐）**：服务商选 **OpenRouter**，模型 `deepseek/deepseek-chat`（可改 `deepseek/deepseek-v3.2` 等），勾选联网即用 OpenRouter 自带的 web 插件（`plugins:[{id:'web'}]`），一个 OpenRouter Key 同时拿到 DeepSeek + 联网，引用来源取自返回的 `annotations`。
+     - **DeepSeek/GPT/Claude 直连 + Tavily**：这些直连 API 无联网搜索，需另填 [Tavily](https://tavily.com) Key 作前置检索层（topic=news、近 21 天），把概要与来源喂给模型。
+     结果卡片都会列出引用来源链接。
 3. **接入模型**：开启「在所有预测/模拟/投注中应用 AI 调整」后，
    - 预期进球按动机系数缩放（如摆烂队 ×0.5）；
    - 比分分布按 `最终 = (1−风险)×正常分布 + 风险×情景分布` 混合（如 60% 默契平局风险会显著抬高 1:1 概率）；

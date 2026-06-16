@@ -33,6 +33,13 @@ const AI_PROVIDERS = {
     defaultModel: 'claude-opus-4-8',
     kind: 'anthropic',
   },
+  openrouter: {
+    label: 'OpenRouter（DeepSeek+联网，一个Key）',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    defaultModel: 'deepseek/deepseek-chat',
+    kind: 'openai',
+    builtinWeb: true, // 开启 web 时用 OpenRouter 自带联网插件，无需 Tavily
+  },
 };
 
 const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', web: false };
@@ -157,7 +164,7 @@ function parseAIJson(text) {
   return JSON.parse(text.slice(i, j + 1));
 }
 
-// 调用所选大模型，返回纯文本内容
+// 调用所选大模型，返回 { text, sources }
 async function callLLM(system, user) {
   const prov = AI_PROVIDERS[AI_CFG.provider];
   if (!prov) throw new Error('未知服务商');
@@ -179,26 +186,34 @@ async function callLLM(system, user) {
         messages: [{ role: 'user', content: user }],
       }),
     });
-    data = await res.json();
+    data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error('Claude 接口错误：' + (data.error ? data.error.message : res.status));
     const block = (data.content || []).find((b) => b.type === 'text');
-    return block ? block.text : '';
+    return { text: block ? block.text : '', sources: [] };
   }
-  // OpenAI 兼容（DeepSeek / GPT）
+  // OpenAI 兼容（DeepSeek / GPT / OpenRouter）
+  const body = {
+    model,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    response_format: { type: 'json_object' },
+    temperature: 0.4,
+    max_tokens: 1500,
+  };
+  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：开启 web 时挂 web 插件
+  if (prov.builtinWeb && AI_CFG.web) body.plugins = [{ id: 'web', max_results: 5 }];
   res = await fetch(prov.endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + AI_CFG.apiKey },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      response_format: { type: 'json_object' },
-      temperature: 0.4,
-      max_tokens: 1500,
-    }),
+    body: JSON.stringify(body),
   });
-  data = await res.json();
-  if (!res.ok) throw new Error((prov.label) + ' 接口错误：' + (data.error ? data.error.message : res.status));
-  return data.choices && data.choices[0] ? data.choices[0].message.content : '';
+  data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(prov.label + ' 接口错误：' + (data.error ? (data.error.message || JSON.stringify(data.error)) : res.status));
+  const msg = data.choices && data.choices[0] ? data.choices[0].message : null;
+  const sources = msg && Array.isArray(msg.annotations)
+    ? msg.annotations.filter((a) => a.type === 'url_citation' && a.url_citation)
+      .map((a) => ({ title: a.url_citation.title || a.url_citation.url, url: a.url_citation.url }))
+    : [];
+  return { text: msg ? (msg.content || '') : '', sources };
 }
 
 // ---------- Tavily 联网检索（为 DeepSeek 等补充最新情报） ----------
@@ -236,10 +251,12 @@ async function webContextForMatch(A, B, fixture) {
 // 分析单场，写入存储并返回评估
 async function analyzeMatch(fixture, extraContext) {
   const A = TEAMS[fixture.a], B = TEAMS[fixture.b];
+  const prov = AI_PROVIDERS[AI_CFG.provider] || {};
   let ctx = extraContext || '';
   let sources = [];
   let webUsed = false;
-  if (AI_CFG.web && AI_CFG.tavilyKey) {
+  // 非 OpenRouter（DeepSeek/GPT/Claude 直连）：用 Tavily 作前置检索
+  if (AI_CFG.web && !prov.builtinWeb && AI_CFG.tavilyKey) {
     try {
       const w = await webContextForMatch(A, B, fixture);
       ctx = (ctx ? ctx + '\n\n' : '') + '【Tavily 联网检索（最新）】\n' + w.text;
@@ -250,9 +267,11 @@ async function analyzeMatch(fixture, extraContext) {
     }
   }
   const { system, user } = buildAIPrompt(fixture, ctx);
-  const text = await callLLM(system, user);
-  const assess = normalizeAssessment(parseAIJson(text), fixture,
+  const out = await callLLM(system, user); // { text, sources }
+  const assess = normalizeAssessment(parseAIJson(out.text), fixture,
     { provider: AI_CFG.provider, model: AI_CFG.model || AI_PROVIDERS[AI_CFG.provider].defaultModel });
+  // OpenRouter 自带联网：来源取自模型返回的引用注解
+  if (AI_CFG.web && prov.builtinWeb) { sources = out.sources; webUsed = true; }
   assess.sources = sources;
   assess.web = webUsed;
   AI_ASSESS[fixture.a + '|' + fixture.b] = assess;

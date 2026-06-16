@@ -782,7 +782,10 @@ function initAITab() {
   dSel.value = SCHEDULE_DATES.includes('2026-06-14') ? '2026-06-14' : SCHEDULE_DATES[0];
 
   pSel.addEventListener('change', () => {
+    AI_CFG.provider = pSel.value;
+    saveAICfg();
     $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[pSel.value].defaultModel;
+    updateAICfgState();
   });
   dSel.addEventListener('change', () => { refreshManFixtures(); renderAI(); });
   $('#aiSave').addEventListener('click', () => {
@@ -805,8 +808,12 @@ function initAITab() {
 
 function updateAICfgState() {
   const ok = !!AI_CFG.apiKey;
-  const web = AI_CFG.web && AI_CFG.tavilyKey ? ' · <span class="up">联网检索开</span>'
-    : (AI_CFG.web ? ' · <span class="down">联网已勾选但缺 Tavily Key</span>' : '');
+  const builtin = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
+  const webReady = AI_CFG.web && (builtin || AI_CFG.tavilyKey);
+  const web = AI_CFG.web
+    ? (webReady ? ` · <span class="up">联网开${builtin ? '（自带）' : '（Tavily）'}</span>`
+      : ' · <span class="down">联网已勾选但缺 Tavily Key</span>')
+    : '';
   $('#aiCfgState').innerHTML = (ok
     ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
     : '<span class="down">未配置 Key（可用下方手动录入）</span>') + web;
@@ -833,7 +840,7 @@ async function analyzeDay() {
   const btn = $('#aiAnalyzeDay');
   btn.disabled = true;
   let done = 0;
-  const webTag = (AI_CFG.web && AI_CFG.tavilyKey) ? '（含联网检索）' : '';
+  const webTag = (AI_CFG.web && ((AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb || AI_CFG.tavilyKey)) ? '（含联网检索）' : '';
   for (const f of fixtures) {
     $('#aiStatus').textContent = `分析中${webTag} ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
     try {

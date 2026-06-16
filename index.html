@@ -475,7 +475,7 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
         <input type="password" id="aiTavily" class="text-input" placeholder="tvly-...（联网检索，可选，仅存本地）">
         <label class="opt"><input type="checkbox" id="aiWeb"> <strong>分析前用 Tavily 联网搜最新情报</strong></label>
       </div>
-      <p class="hint">DeepSeek 直连 API 无联网搜索，这里用 Tavily（<a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> 免费额度）作检索层：开启后每场分析前会先搜该场最新新闻喂给模型。Key 仅存本地浏览器。</p>
+      <p class="hint">想<strong>一个 Key 搞定 DeepSeek + 联网</strong>：服务商选 <strong>OpenRouter</strong>，模型默认 <code>deepseek/deepseek-chat</code>（可改 <code>deepseek/deepseek-v3.2</code> 等），勾选下方联网即用其自带搜索，<strong>无需 Tavily</strong>。<br>若用 DeepSeek/GPT/Claude 直连，则需另填 Tavily Key（<a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> 免费额度）作检索层。所有 Key 仅存本地浏览器。</p>
     </div>
     <div class="card">
       <div class="section-title">② 分析与应用</div>
@@ -1739,6 +1739,13 @@ const AI_PROVIDERS = {
     defaultModel: 'claude-opus-4-8',
     kind: 'anthropic',
   },
+  openrouter: {
+    label: 'OpenRouter（DeepSeek+联网，一个Key）',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    defaultModel: 'deepseek/deepseek-chat',
+    kind: 'openai',
+    builtinWeb: true, // 开启 web 时用 OpenRouter 自带联网插件，无需 Tavily
+  },
 };
 
 const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', web: false };
@@ -1863,7 +1870,7 @@ function parseAIJson(text) {
   return JSON.parse(text.slice(i, j + 1));
 }
 
-// 调用所选大模型，返回纯文本内容
+// 调用所选大模型，返回 { text, sources }
 async function callLLM(system, user) {
   const prov = AI_PROVIDERS[AI_CFG.provider];
   if (!prov) throw new Error('未知服务商');
@@ -1885,26 +1892,34 @@ async function callLLM(system, user) {
         messages: [{ role: 'user', content: user }],
       }),
     });
-    data = await res.json();
+    data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error('Claude 接口错误：' + (data.error ? data.error.message : res.status));
     const block = (data.content || []).find((b) => b.type === 'text');
-    return block ? block.text : '';
+    return { text: block ? block.text : '', sources: [] };
   }
-  // OpenAI 兼容（DeepSeek / GPT）
+  // OpenAI 兼容（DeepSeek / GPT / OpenRouter）
+  const body = {
+    model,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    response_format: { type: 'json_object' },
+    temperature: 0.4,
+    max_tokens: 1500,
+  };
+  // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：开启 web 时挂 web 插件
+  if (prov.builtinWeb && AI_CFG.web) body.plugins = [{ id: 'web', max_results: 5 }];
   res = await fetch(prov.endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + AI_CFG.apiKey },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      response_format: { type: 'json_object' },
-      temperature: 0.4,
-      max_tokens: 1500,
-    }),
+    body: JSON.stringify(body),
   });
-  data = await res.json();
-  if (!res.ok) throw new Error((prov.label) + ' 接口错误：' + (data.error ? data.error.message : res.status));
-  return data.choices && data.choices[0] ? data.choices[0].message.content : '';
+  data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(prov.label + ' 接口错误：' + (data.error ? (data.error.message || JSON.stringify(data.error)) : res.status));
+  const msg = data.choices && data.choices[0] ? data.choices[0].message : null;
+  const sources = msg && Array.isArray(msg.annotations)
+    ? msg.annotations.filter((a) => a.type === 'url_citation' && a.url_citation)
+      .map((a) => ({ title: a.url_citation.title || a.url_citation.url, url: a.url_citation.url }))
+    : [];
+  return { text: msg ? (msg.content || '') : '', sources };
 }
 
 // ---------- Tavily 联网检索（为 DeepSeek 等补充最新情报） ----------
@@ -1942,10 +1957,12 @@ async function webContextForMatch(A, B, fixture) {
 // 分析单场，写入存储并返回评估
 async function analyzeMatch(fixture, extraContext) {
   const A = TEAMS[fixture.a], B = TEAMS[fixture.b];
+  const prov = AI_PROVIDERS[AI_CFG.provider] || {};
   let ctx = extraContext || '';
   let sources = [];
   let webUsed = false;
-  if (AI_CFG.web && AI_CFG.tavilyKey) {
+  // 非 OpenRouter（DeepSeek/GPT/Claude 直连）：用 Tavily 作前置检索
+  if (AI_CFG.web && !prov.builtinWeb && AI_CFG.tavilyKey) {
     try {
       const w = await webContextForMatch(A, B, fixture);
       ctx = (ctx ? ctx + '\n\n' : '') + '【Tavily 联网检索（最新）】\n' + w.text;
@@ -1956,9 +1973,11 @@ async function analyzeMatch(fixture, extraContext) {
     }
   }
   const { system, user } = buildAIPrompt(fixture, ctx);
-  const text = await callLLM(system, user);
-  const assess = normalizeAssessment(parseAIJson(text), fixture,
+  const out = await callLLM(system, user); // { text, sources }
+  const assess = normalizeAssessment(parseAIJson(out.text), fixture,
     { provider: AI_CFG.provider, model: AI_CFG.model || AI_PROVIDERS[AI_CFG.provider].defaultModel });
+  // OpenRouter 自带联网：来源取自模型返回的引用注解
+  if (AI_CFG.web && prov.builtinWeb) { sources = out.sources; webUsed = true; }
   assess.sources = sources;
   assess.web = webUsed;
   AI_ASSESS[fixture.a + '|' + fixture.b] = assess;
@@ -2770,7 +2789,10 @@ function initAITab() {
   dSel.value = SCHEDULE_DATES.includes('2026-06-14') ? '2026-06-14' : SCHEDULE_DATES[0];
 
   pSel.addEventListener('change', () => {
+    AI_CFG.provider = pSel.value;
+    saveAICfg();
     $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[pSel.value].defaultModel;
+    updateAICfgState();
   });
   dSel.addEventListener('change', () => { refreshManFixtures(); renderAI(); });
   $('#aiSave').addEventListener('click', () => {
@@ -2793,8 +2815,12 @@ function initAITab() {
 
 function updateAICfgState() {
   const ok = !!AI_CFG.apiKey;
-  const web = AI_CFG.web && AI_CFG.tavilyKey ? ' · <span class="up">联网检索开</span>'
-    : (AI_CFG.web ? ' · <span class="down">联网已勾选但缺 Tavily Key</span>' : '');
+  const builtin = (AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb;
+  const webReady = AI_CFG.web && (builtin || AI_CFG.tavilyKey);
+  const web = AI_CFG.web
+    ? (webReady ? ` · <span class="up">联网开${builtin ? '（自带）' : '（Tavily）'}</span>`
+      : ' · <span class="down">联网已勾选但缺 Tavily Key</span>')
+    : '';
   $('#aiCfgState').innerHTML = (ok
     ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
     : '<span class="down">未配置 Key（可用下方手动录入）</span>') + web;
@@ -2821,7 +2847,7 @@ async function analyzeDay() {
   const btn = $('#aiAnalyzeDay');
   btn.disabled = true;
   let done = 0;
-  const webTag = (AI_CFG.web && AI_CFG.tavilyKey) ? '（含联网检索）' : '';
+  const webTag = (AI_CFG.web && ((AI_PROVIDERS[AI_CFG.provider] || {}).builtinWeb || AI_CFG.tavilyKey)) ? '（含联网检索）' : '';
   for (const f of fixtures) {
     $('#aiStatus').textContent = `分析中${webTag} ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
     try {
