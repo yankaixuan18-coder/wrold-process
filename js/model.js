@@ -83,10 +83,44 @@ function strengthDiff(A, B, cfg = {}) {
 // Elo 当量分差 → 双方预期进球数
 function matchLambdas(A, B, cfg = {}) {
   const d = strengthDiff(A, B, cfg);
-  return [
-    clamp(BASE_GOALS * Math.pow(10, d / 1000), 0.15, 4.8),
-    clamp(BASE_GOALS * Math.pow(10, -d / 1000), 0.15, 4.8),
-  ];
+  let lamA = clamp(BASE_GOALS * Math.pow(10, d / 1000), 0.15, 4.8);
+  let lamB = clamp(BASE_GOALS * Math.pow(10, -d / 1000), 0.15, 4.8);
+  // AI 动机/状态调整：按 A=主队 朝向缩放预期进球（见 ai.js）
+  const assess = aiAssessmentFor(A, B, cfg);
+  if (assess) {
+    lamA = clamp(lamA * clamp(assess.homeGoalMult || 1, 0.3, 2), 0.05, 4.8);
+    lamB = clamp(lamB * clamp(assess.awayGoalMult || 1, 0.3, 2), 0.05, 4.8);
+  }
+  return [lamA, lamB];
+}
+
+// ---------- AI 比赛动机 / 异常（假球·默契球）调整（见 ai.js） ----------
+// 仅当 cfg.ai === true 且存在该场 AI 评估时生效；评估按 A=主队 朝向返回。
+function aiAssessmentFor(A, B, cfg) {
+  if (!cfg || cfg.ai !== true) return null;
+  if (typeof getAIAssessment !== 'function') return null;
+  return getAIAssessment(A.code, B.code);
+}
+
+// 把「假球/默契球」情景比分分布与正常比分矩阵混合：
+//   最终 = (1 − fixRisk) × 正常矩阵 + fixRisk × 情景比分分布
+function mixFixScenario(matrix, assess) {
+  if (!assess) return matrix;
+  const r = clamp(assess.fixRisk || 0, 0, 1);
+  const scores = assess.fixScores || [];
+  if (r <= 0 || !scores.length) return matrix;
+  let wsum = 0;
+  for (const s of scores) wsum += Math.max(0, s.weight) || 0;
+  if (wsum <= 0) return matrix;
+  const out = matrix.map((row) => row.slice());
+  for (let a = 0; a <= MAX_GOALS; a++)
+    for (let b = 0; b <= MAX_GOALS; b++) out[a][b] *= (1 - r);
+  for (const s of scores) {
+    const a = Math.min(MAX_GOALS, Math.max(0, Math.round(s.a)));
+    const b = Math.min(MAX_GOALS, Math.max(0, Math.round(s.b)));
+    out[a][b] += r * ((Math.max(0, s.weight) || 0) / wsum);
+  }
+  return out;
 }
 
 function poissonPmf(lambda, k) {
@@ -154,7 +188,7 @@ function penaltyWinProb(A, B, cfg = {}) {
 function predictMatch(A, B, cfg = {}) {
   const dc = cfg.dc !== false;
   const [lamA, lamB] = matchLambdas(A, B, cfg);
-  const matrix = scoreMatrix(lamA, lamB, dc);
+  const matrix = mixFixScenario(scoreMatrix(lamA, lamB, dc), aiAssessmentFor(A, B, cfg));
   const probs = outcomeProbs(matrix);
   const top = rankedScores(matrix);
   const best = top[0];
@@ -186,7 +220,7 @@ function matchDist(A, B, cfg) {
   const key = A.code + '|' + B.code;
   if (cfg.cache && cfg.cache.has(key)) return cfg.cache.get(key);
   const [lamA, lamB] = matchLambdas(A, B, cfg);
-  const m = scoreMatrix(lamA, lamB, cfg.dc !== false);
+  const m = mixFixScenario(scoreMatrix(lamA, lamB, cfg.dc !== false), aiAssessmentFor(A, B, cfg));
   const cum = [];
   let acc = 0;
   for (let a = 0; a <= MAX_GOALS; a++)

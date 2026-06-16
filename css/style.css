@@ -291,3 +291,25 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
 .src-block a { color: #38bdf8; text-decoration: none; }
 .src-block a:hover { text-decoration: underline; }
 .src-legend { margin-top: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+
+/* ===== AI 分析 ===== */
+.ai-context {
+  width: 100%; min-height: 70px; margin-top: 12px; resize: vertical;
+  background: #0e1d3d; color: #e8eefc; border: 1px solid #2c4070;
+  border-radius: 10px; padding: 10px 12px; font-family: inherit; font-size: 0.9rem;
+}
+.ai-card { padding: 16px 18px; }
+.ai-card.has-assess { border-color: #a78bfa; }
+.ai-summary { color: #e8eefc; font-size: 0.92rem; margin: 8px 0; line-height: 1.6; }
+.ai-meta { font-size: 0.78rem; color: #5b6f96; }
+.ai-factors { margin: 8px 0 0; padding-left: 18px; color: #b9c8e8; font-size: 0.85rem; line-height: 1.7; }
+.ai-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 8px; font-size: 0.85rem; color: #b9c8e8; }
+.risk-meter { height: 14px; border-radius: 7px; background: #0e1d3d; overflow: hidden; flex: 1; min-width: 120px; }
+.risk-meter div { height: 100%; background: linear-gradient(90deg, #f7c948, #f472b6); }
+.ai-cmp { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.ai-cmp .box { flex: 1; min-width: 180px; background: #0e1d3d; border: 1px solid #2c4070; border-radius: 10px; padding: 10px 12px; }
+.ai-cmp .box.adj { border-color: #a78bfa; }
+.ai-cmp .box .t { font-size: 0.76rem; color: #93a6c8; margin-bottom: 4px; }
+.ai-cmp .box .s { font-size: 1.3rem; font-weight: 800; color: #38bdf8; }
+.ai-cmp .box.adj .s { color: #a78bfa; }
+.ai-tag { font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(167,139,250,0.18); color: #a78bfa; }

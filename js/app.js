@@ -80,9 +80,10 @@ function renderMatch() {
   }
 
   // 四个模型分别预测
+  const ai = aiApplyOn();
   const results = {};
   for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
-    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights });
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights, ai });
   }
   const r = results.ensemble; // 主展示用集成结果
   const { probs, top, best } = r;
@@ -169,7 +170,7 @@ function renderMatch() {
 function renderGroup() {
   const g = $('#groupSelect').value;
   const codes = GROUPS[g];
-  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights(), cache: new Map() };
+  const cfg = { model: $('#groupModel').value, useHome: true, weights: readWeights(), ai: aiApplyOn(), cache: new Map() };
   const RUNS = 5000;
 
   // 单场最可能比分（已录入真实赛果的场次显示实际比分）
@@ -247,7 +248,7 @@ function renderGroup() {
 // ---------- 全程模拟 ----------
 function renderTournament() {
   const runs = parseInt($('#mcRuns').value, 10);
-  const cfg = { model: $('#mcModel').value, useHome: true, weights: readWeights() };
+  const cfg = { model: $('#mcModel').value, useHome: true, weights: readWeights(), ai: aiApplyOn() };
   const btn = $('#mcBtn');
   btn.disabled = true;
   $('#mcStatus').textContent = '模拟中……';
@@ -529,7 +530,7 @@ function renderBetting() {
   const date = $('#betDate').value;
   const modelKey = $('#betModel').value;
   const bankroll = Math.max(0, parseInt($('#betBankroll').value, 10) || 0);
-  const rec = recommendForDate(date, BET_MODELS[modelKey].cfg, { oddsMap: oddsOverrides });
+  const rec = recommendForDate(date, { ...BET_MODELS[modelKey].cfg, ai: aiApplyOn() }, { oddsMap: oddsOverrides });
 
   const matchCards = rec.matches.map((row) => {
     const f = row.fixture;
@@ -612,7 +613,7 @@ function initBettingDelegation() {
 
 // ---------- 实时积分榜 ----------
 function renderStandings() {
-  const cfg = { model: 'ensemble', useHome: true, weights: { elo: 1, fifa: 1, market: 1 }, cache: new Map() };
+  const cfg = { model: 'ensemble', useHome: true, weights: { elo: 1, fifa: 1, market: 1 }, ai: aiApplyOn(), cache: new Map() };
   const RUNS = 3000;
   const cards = GROUP_NAMES.map((g) => {
     const table = groupStandings(g);
@@ -754,6 +755,166 @@ function renderLedger() {
   </div>`;
 }
 
+// ---------- AI 分析 ----------
+function initAITab() {
+  const pSel = $('#aiProvider');
+  for (const [k, v] of Object.entries(AI_PROVIDERS)) {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = v.label;
+    pSel.appendChild(o);
+  }
+  pSel.value = AI_CFG.provider;
+  $('#aiModel').value = AI_CFG.model || '';
+  $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[AI_CFG.provider].defaultModel;
+  $('#aiKey').value = AI_CFG.apiKey || '';
+  $('#aiApply').checked = aiApplyOn();
+  updateAICfgState();
+
+  const dSel = $('#aiDate');
+  for (const d of SCHEDULE_DATES) {
+    const o = document.createElement('option');
+    o.value = d;
+    o.textContent = `${dateLabel(d)}（${fixturesOnDate(d).length} 场）`;
+    dSel.appendChild(o);
+  }
+  dSel.value = SCHEDULE_DATES.includes('2026-06-14') ? '2026-06-14' : SCHEDULE_DATES[0];
+
+  pSel.addEventListener('change', () => {
+    $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[pSel.value].defaultModel;
+  });
+  dSel.addEventListener('change', () => { refreshManFixtures(); renderAI(); });
+  $('#aiSave').addEventListener('click', () => {
+    AI_CFG.provider = pSel.value;
+    AI_CFG.model = $('#aiModel').value.trim();
+    AI_CFG.apiKey = $('#aiKey').value.trim();
+    saveAICfg();
+    updateAICfgState();
+  });
+  $('#aiApply').addEventListener('change', () => { setAIApply($('#aiApply').checked); refreshAll(); renderAI(); });
+  $('#aiAnalyzeDay').addEventListener('click', analyzeDay);
+  $('#aiClear').addEventListener('click', () => {
+    if (confirm('确认清空全部 AI 分析？')) { clearAssessments(); renderAI(); refreshAll(); }
+  });
+  $('#aiManAdd').addEventListener('click', addManualAssessment);
+  refreshManFixtures();
+}
+
+function updateAICfgState() {
+  const ok = !!AI_CFG.apiKey;
+  $('#aiCfgState').innerHTML = ok
+    ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
+    : '<span class="down">未配置 Key（可用下方手动录入）</span>';
+}
+
+function refreshManFixtures() {
+  const sel = $('#aiManFixture');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const f of fixturesOnDate($('#aiDate').value)) {
+    const o = document.createElement('option');
+    o.value = f.a + '|' + f.b;
+    o.textContent = `${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}`;
+    sel.appendChild(o);
+  }
+}
+
+async function analyzeDay() {
+  const date = $('#aiDate').value;
+  const ctx = $('#aiContext').value.trim();
+  const fixtures = fixturesOnDate(date).filter((f) => !getActualResult(f.a, f.b));
+  if (!fixtures.length) { $('#aiStatus').textContent = '该日没有未赛场次'; return; }
+  if (!AI_CFG.apiKey) { $('#aiStatus').innerHTML = '<span class="down">请先保存 API Key，或用下方手动录入</span>'; return; }
+  const btn = $('#aiAnalyzeDay');
+  btn.disabled = true;
+  let done = 0;
+  for (const f of fixtures) {
+    $('#aiStatus').textContent = `分析中 ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
+    try {
+      await analyzeMatch(f, ctx);
+    } catch (e) {
+      $('#aiStatus').innerHTML = `<span class="down">出错：${e.message}</span>`;
+      btn.disabled = false;
+      renderAI();
+      return;
+    }
+    done++;
+    renderAI();
+  }
+  $('#aiStatus').innerHTML = `<span class="up">完成 ${done} 场分析</span>`;
+  btn.disabled = false;
+  refreshAll();
+}
+
+function addManualAssessment() {
+  const [a, b] = $('#aiManFixture').value.split('|');
+  const f = SCHEDULE.find((m) => m.a === a && m.b === b);
+  if (!f) return;
+  setManualAssessment(f, {
+    summary: '手动录入',
+    homeGoalMult: parseFloat($('#aiManHome').value) || 1,
+    awayGoalMult: parseFloat($('#aiManAway').value) || 1,
+    homeMotivation: 0.5, awayMotivation: 0.5,
+    fixRisk: parseFloat($('#aiManRisk').value) || 0,
+    fixScores: [{ a: parseInt($('#aiManSa').value, 10) || 0, b: parseInt($('#aiManSb').value, 10) || 0, weight: 1 }],
+    keyFactors: ['手动设定'], confidence: 0.5,
+  });
+  renderAI();
+  refreshAll();
+}
+
+function renderAI() {
+  const date = $('#aiDate').value;
+  const fixtures = fixturesOnDate(date);
+  const cards = fixtures.map((f) => {
+    const A = TEAMS[f.a], B = TEAMS[f.b];
+    const head = `<div class="bet-head">
+      <span class="bet-teams">${A.flag} ${A.zh} <span class="dim">vs</span> ${B.zh} ${B.flag}</span>
+      <span class="dim">${f.group}组 · 第${f.md}轮</span>
+    </div>`;
+    const real = getActualResult(f.a, f.b);
+    if (real) {
+      return `<div class="card ai-card"><div class="bet-head">
+        <span class="bet-teams">${A.flag} ${A.zh} vs ${B.zh} ${B.flag}</span>
+        <span class="dim">${f.group}组 · 已结束 ${real[0]}:${real[1]}</span></div></div>`;
+    }
+    const as = getAIAssessment(f.a, f.b);
+    const base = predictMatch(A, B, { model: 'ensemble', useHome: true, dc: true, ai: false });
+    if (!as) {
+      return `<div class="card ai-card">${head}
+        <div class="ai-meta">尚未分析。基础最可能比分 ${base.best.a}:${base.best.b}（${A.zh}胜${(base.probs.win * 100).toFixed(0)}% / 平${(base.probs.draw * 100).toFixed(0)}% / ${B.zh}胜${(base.probs.loss * 100).toFixed(0)}%）</div>
+      </div>`;
+    }
+    const adj = predictMatch(A, B, { model: 'ensemble', useHome: true, dc: true, ai: true });
+    const factors = as.keyFactors.length ? `<ul class="ai-factors">${as.keyFactors.map((x) => `<li>${x}</li>`).join('')}</ul>` : '';
+    return `<div class="card ai-card has-assess">
+      ${head}
+      <div class="ai-summary">🤖 ${as.summary || '（无摘要）'} <span class="ai-tag">${as.provider === 'manual' ? '手动' : as.provider}</span></div>
+      ${factors}
+      <div class="ai-row">
+        <span>动机 ${A.zh} ${(as.homeMotivation * 100).toFixed(0)}% · ${B.zh} ${(as.awayMotivation * 100).toFixed(0)}%</span>
+        <span>进球系数 ${as.homeGoalMult.toFixed(2)} / ${as.awayGoalMult.toFixed(2)}</span>
+      </div>
+      <div class="ai-row">
+        <span>假球/默契风险 ${(as.fixRisk * 100).toFixed(0)}%</span>
+        <span class="risk-meter"><div style="width:${(as.fixRisk * 100).toFixed(0)}%"></div></span>
+      </div>
+      <div class="ai-cmp">
+        <div class="box"><div class="t">基础预测</div><div class="s">${base.best.a} : ${base.best.b}</div><div class="ai-meta">${A.zh}胜${(base.probs.win * 100).toFixed(0)}% 平${(base.probs.draw * 100).toFixed(0)}% ${B.zh}胜${(base.probs.loss * 100).toFixed(0)}%</div></div>
+        <div class="box adj"><div class="t">AI 调整后</div><div class="s">${adj.best.a} : ${adj.best.b}</div><div class="ai-meta">${A.zh}胜${(adj.probs.win * 100).toFixed(0)}% 平${(adj.probs.draw * 100).toFixed(0)}% ${B.zh}胜${(adj.probs.loss * 100).toFixed(0)}%</div></div>
+      </div>
+      <div style="margin-top:10px"><button class="mini-btn ai-del" data-a="${f.a}" data-b="${f.b}">删除该分析</button></div>
+    </div>`;
+  }).join('');
+  const applyNote = aiApplyOn()
+    ? '<span class="up">已开启：AI 调整正作用于所有预测/模拟/投注</span>'
+    : '<span class="dim">未开启应用：以下仅为预览，不影响其它页面</span>';
+  $('#aiResult').innerHTML = `<div class="card"><div class="section-title">${dateLabel(date)} · 共 ${fixtures.length} 场 · 已分析 ${assessmentCount()} 场 · ${applyNote}</div></div>` + cards;
+
+  $('#aiResult').querySelectorAll('.ai-del').forEach((btn) => {
+    btn.addEventListener('click', () => { removeAssessment(btn.dataset.a, btn.dataset.b); renderAI(); refreshAll(); });
+  });
+}
+
 // 赛果变化后刷新所有视图
 function refreshAll() {
   renderResultsTab();
@@ -771,6 +932,7 @@ initBettingTab();
 initBettingDelegation();
 initBacktestTab();
 initLedgerTab();
+initAITab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
@@ -781,3 +943,4 @@ renderDataTable();
 renderResultsTab();
 renderBetting();
 renderLedger();
+renderAI();
