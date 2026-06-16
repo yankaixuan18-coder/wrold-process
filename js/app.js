@@ -767,6 +767,8 @@ function initAITab() {
   $('#aiModel').value = AI_CFG.model || '';
   $('#aiModel').placeholder = '留空用默认：' + AI_PROVIDERS[AI_CFG.provider].defaultModel;
   $('#aiKey').value = AI_CFG.apiKey || '';
+  $('#aiTavily').value = AI_CFG.tavilyKey || '';
+  $('#aiWeb').checked = !!AI_CFG.web;
   $('#aiApply').checked = aiApplyOn();
   updateAICfgState();
 
@@ -787,9 +789,11 @@ function initAITab() {
     AI_CFG.provider = pSel.value;
     AI_CFG.model = $('#aiModel').value.trim();
     AI_CFG.apiKey = $('#aiKey').value.trim();
+    AI_CFG.tavilyKey = $('#aiTavily').value.trim();
     saveAICfg();
     updateAICfgState();
   });
+  $('#aiWeb').addEventListener('change', () => { AI_CFG.web = $('#aiWeb').checked; saveAICfg(); updateAICfgState(); });
   $('#aiApply').addEventListener('change', () => { setAIApply($('#aiApply').checked); refreshAll(); renderAI(); });
   $('#aiAnalyzeDay').addEventListener('click', analyzeDay);
   $('#aiClear').addEventListener('click', () => {
@@ -801,9 +805,11 @@ function initAITab() {
 
 function updateAICfgState() {
   const ok = !!AI_CFG.apiKey;
-  $('#aiCfgState').innerHTML = ok
+  const web = AI_CFG.web && AI_CFG.tavilyKey ? ' · <span class="up">联网检索开</span>'
+    : (AI_CFG.web ? ' · <span class="down">联网已勾选但缺 Tavily Key</span>' : '');
+  $('#aiCfgState').innerHTML = (ok
     ? `<span class="up">已配置 ${AI_PROVIDERS[AI_CFG.provider].label}</span>`
-    : '<span class="down">未配置 Key（可用下方手动录入）</span>';
+    : '<span class="down">未配置 Key（可用下方手动录入）</span>') + web;
 }
 
 function refreshManFixtures() {
@@ -827,8 +833,9 @@ async function analyzeDay() {
   const btn = $('#aiAnalyzeDay');
   btn.disabled = true;
   let done = 0;
+  const webTag = (AI_CFG.web && AI_CFG.tavilyKey) ? '（含联网检索）' : '';
   for (const f of fixtures) {
-    $('#aiStatus').textContent = `分析中 ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
+    $('#aiStatus').textContent = `分析中${webTag} ${done + 1}/${fixtures.length}：${TEAMS[f.a].zh} vs ${TEAMS[f.b].zh}……`;
     try {
       await analyzeMatch(f, ctx);
     } catch (e) {
@@ -886,10 +893,13 @@ function renderAI() {
     }
     const adj = predictMatch(A, B, { model: 'ensemble', useHome: true, dc: true, ai: true });
     const factors = as.keyFactors.length ? `<ul class="ai-factors">${as.keyFactors.map((x) => `<li>${x}</li>`).join('')}</ul>` : '';
+    const srcs = (as.sources && as.sources.length)
+      ? `<div class="ai-meta">🌐 联网来源：${as.sources.map((s) => `<a href="${s.url}" target="_blank" rel="noopener">${s.title || s.url}</a>`).join(' · ')}</div>` : '';
     return `<div class="card ai-card has-assess">
       ${head}
-      <div class="ai-summary">🤖 ${as.summary || '（无摘要）'} <span class="ai-tag">${as.provider === 'manual' ? '手动' : as.provider}</span></div>
+      <div class="ai-summary">🤖 ${as.summary || '（无摘要）'} <span class="ai-tag">${as.provider === 'manual' ? '手动' : as.provider}${as.web ? ' · 联网' : ''}</span></div>
       ${factors}
+      ${srcs}
       <div class="ai-row">
         <span>动机 ${A.zh} ${(as.homeMotivation * 100).toFixed(0)}% · ${B.zh} ${(as.awayMotivation * 100).toFixed(0)}%</span>
         <span>进球系数 ${as.homeGoalMult.toFixed(2)} / ${as.awayGoalMult.toFixed(2)}</span>

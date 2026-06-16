@@ -35,7 +35,7 @@ const AI_PROVIDERS = {
   },
 };
 
-const AI_CFG = { provider: 'deepseek', model: '', apiKey: '' };
+const AI_CFG = { provider: 'deepseek', model: '', apiKey: '', tavilyKey: '', web: false };
 const AI_ASSESS = {}; // 'a|b' -> assessment（按录入朝向存储）
 
 (function loadAICfg() {
@@ -201,12 +201,60 @@ async function callLLM(system, user) {
   return data.choices && data.choices[0] ? data.choices[0].message.content : '';
 }
 
+// ---------- Tavily 联网检索（为 DeepSeek 等补充最新情报） ----------
+// DeepSeek 直连 API 无联网搜索，这里用 Tavily（专为 LLM 设计、可浏览器直连）作检索层。
+async function tavilySearch(query) {
+  if (!AI_CFG.tavilyKey) throw new Error('未配置 Tavily Key');
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      api_key: AI_CFG.tavilyKey, // 放在 body，避开 Authorization 头的跨域预检
+      query, topic: 'news', days: 21, max_results: 5,
+      search_depth: 'basic', include_answer: true,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error('Tavily 错误：' + (data.error || data.detail || res.status));
+  return data;
+}
+
+function webQueryForMatch(A, B, fixture) {
+  return `${A.en} vs ${B.en} 2026 FIFA World Cup ${fixture.date} team news injuries suspensions lineup rotation qualification scenario`;
+}
+
+// 返回 { text, sources }；text 注入提示词，sources 用于展示
+async function webContextForMatch(A, B, fixture) {
+  const data = await tavilySearch(webQueryForMatch(A, B, fixture));
+  const lines = [];
+  if (data.answer) lines.push('概要：' + data.answer);
+  const results = (data.results || []).slice(0, 5);
+  for (const r of results) lines.push(`- ${r.title}：${String(r.content || '').slice(0, 300)}（${r.url}）`);
+  return { text: lines.join('\n') || '（无检索结果）', sources: results.map((r) => ({ title: r.title, url: r.url })) };
+}
+
 // 分析单场，写入存储并返回评估
 async function analyzeMatch(fixture, extraContext) {
-  const { system, user } = buildAIPrompt(fixture, extraContext);
+  const A = TEAMS[fixture.a], B = TEAMS[fixture.b];
+  let ctx = extraContext || '';
+  let sources = [];
+  let webUsed = false;
+  if (AI_CFG.web && AI_CFG.tavilyKey) {
+    try {
+      const w = await webContextForMatch(A, B, fixture);
+      ctx = (ctx ? ctx + '\n\n' : '') + '【Tavily 联网检索（最新）】\n' + w.text;
+      sources = w.sources;
+      webUsed = true;
+    } catch (e) {
+      ctx = (ctx ? ctx + '\n\n' : '') + '【联网检索失败，已忽略】' + e.message;
+    }
+  }
+  const { system, user } = buildAIPrompt(fixture, ctx);
   const text = await callLLM(system, user);
   const assess = normalizeAssessment(parseAIJson(text), fixture,
     { provider: AI_CFG.provider, model: AI_CFG.model || AI_PROVIDERS[AI_CFG.provider].defaultModel });
+  assess.sources = sources;
+  assess.web = webUsed;
   AI_ASSESS[fixture.a + '|' + fixture.b] = assess;
   saveAIAssess();
   return assess;
