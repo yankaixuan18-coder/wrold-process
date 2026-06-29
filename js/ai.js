@@ -188,7 +188,7 @@ async function callLLM(system, user) {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model, max_tokens: 1500,
+        model, max_tokens: 4000,
         system,
         messages: [{ role: 'user', content: user }],
       }),
@@ -198,13 +198,13 @@ async function callLLM(system, user) {
     const block = (data.content || []).find((b) => b.type === 'text');
     return { text: block ? block.text : '', sources: [] };
   }
-  // OpenAI 兼容（DeepSeek / GPT / OpenRouter）
+  // OpenAI 兼容（DeepSeek / GPT / OpenRouter / Requesty）
   const body = {
     model,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     response_format: { type: 'json_object' },
     temperature: 0.4,
-    max_tokens: 1500,
+    max_tokens: 4000,
   };
   // OpenRouter 自带联网（一个 Key 搞定 DeepSeek + 联网）：检索来源选 openrouter 时挂 web 插件
   if (prov.builtinWeb && AI_CFG.webSource === 'openrouter') body.plugins = [{ id: 'web', max_results: 5 }];
@@ -222,12 +222,25 @@ async function callLLM(system, user) {
       : '';
     throw new Error(prov.label + ' 接口错误：' + em + hint);
   }
-  const msg = data.choices && data.choices[0] ? data.choices[0].message : null;
+  const choice = data.choices && data.choices[0] ? data.choices[0] : null;
+  const msg = choice ? choice.message : null;
+  // 健壮取正文：兼容 content 为字符串/数组，以及推理模型的 reasoning 字段
+  let text = '';
+  if (msg) {
+    if (typeof msg.content === 'string') text = msg.content;
+    else if (Array.isArray(msg.content)) text = msg.content.map((p) => (typeof p === 'string' ? p : (p.text || p.content || ''))).join('');
+    if (!text && msg.reasoning) text = msg.reasoning;
+    if (!text && msg.reasoning_content) text = msg.reasoning_content;
+  }
   const sources = msg && Array.isArray(msg.annotations)
     ? msg.annotations.filter((a) => a.type === 'url_citation' && a.url_citation)
       .map((a) => ({ title: a.url_citation.title || a.url_citation.url, url: a.url_citation.url }))
     : [];
-  return { text: msg ? (msg.content || '') : '', sources };
+  if (!text.trim()) {
+    const fr = choice ? choice.finish_reason : '';
+    throw new Error(prov.label + ' 返回空内容（finish_reason=' + (fr || '?') + '）。常见原因：①模型名该服务商不支持（OpenRouter 上 DeepSeek 请用 deepseek/deepseek-chat，不是 deepseek-v4-pro）；②被推理占满 token。请改模型名后重试。');
+  }
+  return { text, sources };
 }
 
 // ---------- Tavily 联网检索（为 DeepSeek 等补充最新情报） ----------
