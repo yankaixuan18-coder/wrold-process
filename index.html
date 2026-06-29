@@ -323,6 +323,19 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
 .ai-cmp .box.adj .s { color: #a78bfa; }
 .ai-tag { font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(167,139,250,0.18); color: #a78bfa; }
 
+/* ===== 淘汰赛预测 ===== */
+.ko-tie { border-bottom: 1px solid #2c4070; padding: 10px 2px; }
+.ko-tie:last-child { border-bottom: none; }
+.ko-tie.tbd { color: #5b6f96; }
+.ko-tie.done { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ko-line { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.ko-team { flex: 1; font-weight: 600; }
+.ko-line .ko-team:first-child { text-align: right; }
+.ko-score { font-size: 1.15rem; font-weight: 800; color: #38bdf8; min-width: 64px; text-align: center; }
+.ko-win { color: #4ade80; font-weight: 700; }
+.ko-entry { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: center; }
+.ko-entry select { width: auto; min-width: 110px; padding: 6px 8px; }
+
   </style>
 </head>
 <body>
@@ -336,6 +349,7 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
     <button class="tab" data-tab="group">小组赛模拟</button>
     <button class="tab" data-tab="standings">实时积分榜</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="knockout">淘汰赛预测</button>
     <button class="tab" data-tab="betting">投注推荐</button>
     <button class="tab" data-tab="ai">AI 分析</button>
     <button class="tab" data-tab="ledger">投注台账</button>
@@ -429,6 +443,19 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
       </div>
     </div>
     <div id="mcResult"></div>
+  </section>
+
+  <!-- 淘汰赛预测 -->
+  <section id="tab-knockout" class="panel">
+    <div class="card">
+      <div class="options">
+        <span class="section-title" style="margin:0">按各组排名生成 32 强签表并逐轮预测；可录入真实淘汰赛结果，自动向下一轮传导。</span>
+        <button id="koBtn" class="primary">刷新淘汰赛预测</button>
+        <button id="koClear" class="del-all">清空淘汰赛结果</button>
+      </div>
+      <p class="hint">小组赛未结束时为「按当前积分的临时投影」；录满 72 场小组赛后即为真实对阵。淘汰赛预期进球已收缩（场面更紧），平局走加时 / 点球。开启 AI 调整时同样生效。</p>
+    </div>
+    <div id="koResult"></div>
   </section>
 
   <!-- 投注推荐 -->
@@ -596,7 +623,7 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
         <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
         <li><strong>Dixon-Coles 修正：</strong>独立泊松会系统性低估 0:0 / 1:1、高估 1:0 / 0:1（攻防博弈导致低比分相关），按经典 Dixon-Coles (1997) τ 系数（ρ = −0.13）校正低比分区域。</li>
         <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
-        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
+        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战；淘汰赛预期进球整体收缩（KO_GOAL_SCALE，场面更紧）。「淘汰赛预测」页按各组排名生成 32 强签表逐轮预测，可录入真实结果自动向下一轮传导，并给出各队夺冠/晋级概率。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
         <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。可在每场录入<strong>真实赔率</strong>让 EV 基于实盘计算。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
         <li><strong>回测校准：</strong>对已结束比赛做<strong>时序回放</strong>（预测每场只用此前赛果，杜绝未来信息泄漏），算出胜平负命中率、Brier 分数、对数损失、比分命中率、总进球 MAE，并与「市场模型」「均匀基准」对照，附校准曲线——这是衡量模型到底准不准、值不值得信的关键。</li>
@@ -998,6 +1025,7 @@ const FIFA_SCALE = 1000 / 850; // FIFA 积分差 → Elo 当量
 const MARKET_B = 121;          // ln(隐含夺冠概率) → Elo 当量
 const MARKET_TOP = 2190;       // 市场头号热门锚定的 Elo 当量
 const DC_RHO = -0.13;          // Dixon-Coles 低比分相关性参数（负值提升 0:0 / 1:1 概率）
+const KO_GOAL_SCALE = 0.90;    // 淘汰赛进球收缩：球队更谨慎、场面更紧、更易低比分/平局拖加时
 
 const MODEL_INFO = {
   elo: { name: 'Elo 模型', short: 'Elo' },
@@ -1076,6 +1104,8 @@ function matchLambdas(A, B, cfg = {}) {
     lamA = clamp(lamA * clamp(assess.homeGoalMult || 1, 0.3, 2), 0.05, 4.8);
     lamB = clamp(lamB * clamp(assess.awayGoalMult || 1, 0.3, 2), 0.05, 4.8);
   }
+  // 淘汰赛进球收缩（更谨慎、更紧）
+  if (cfg.knockout) { lamA *= KO_GOAL_SCALE; lamB *= KO_GOAL_SCALE; }
   return [lamA, lamB];
 }
 
@@ -1202,7 +1232,7 @@ function samplePoisson(lambda) {
 // 比分分布缓存：同一次模拟里相同对阵直接复用累积分布，
 // 抽样时从含 Dixon-Coles 修正的完整比分矩阵中取样
 function matchDist(A, B, cfg) {
-  const key = A.code + '|' + B.code;
+  const key = (cfg.knockout ? 'K|' : 'G|') + A.code + '|' + B.code;
   if (cfg.cache && cfg.cache.has(key)) return cfg.cache.get(key);
   const [lamA, lamB] = matchLambdas(A, B, cfg);
   const m = mixFixScenario(scoreMatrix(lamA, lamB, cfg.dc !== false), aiAssessmentFor(A, B, cfg));
@@ -1223,15 +1253,25 @@ function sampleScore(A, B, cfg) {
   return [Math.floor(i / (MAX_GOALS + 1)), i % (MAX_GOALS + 1)];
 }
 
-// 淘汰赛单场随机出胜者
+// 淘汰赛单场随机出胜者（含淘汰赛进球收缩；正赛平则按 1/3 强度加时，再平点球）
 function sampleKnockoutWinner(codeA, codeB, cfg) {
   const A = TEAMS[codeA], B = TEAMS[codeB];
-  const [ga, gb] = sampleScore(A, B, cfg);
+  const kcfg = cfg.knockout ? cfg : { ...cfg, knockout: true };
+  const [ga, gb] = sampleScore(A, B, kcfg);
   if (ga !== gb) return ga > gb ? codeA : codeB;
-  const { lamA, lamB } = matchDist(A, B, cfg);
+  const { lamA, lamB } = matchDist(A, B, kcfg);
   const ea = samplePoisson(lamA / 3), eb = samplePoisson(lamB / 3);
   if (ea !== eb) return ea > eb ? codeA : codeB;
   return Math.random() < penaltyWinProb(A, B, cfg) ? codeA : codeB;
+}
+
+// 已录入的真实淘汰赛结果优先（见 knockout.js）；否则随机模拟
+function decideKnockout(codeA, codeB, cfg) {
+  if (typeof getKoOutcome === 'function') {
+    const o = getKoOutcome(codeA, codeB);
+    if (o && o.winner) return o.winner;
+  }
+  return sampleKnockoutWinner(codeA, codeB, cfg);
 }
 
 // 模拟一个小组的 6 场比赛，返回排序后的积分榜
@@ -1316,7 +1356,7 @@ function simulateTournament(cfg) {
   const matchWinner = {};
   for (const m of R32_TEMPLATE) {
     const a = resolveSlot(m.home, m.id), b = resolveSlot(m.away, m.id);
-    const w = sampleKnockoutWinner(a, b, cfg);
+    const w = decideKnockout(a, b, cfg);
     matchWinner[m.id] = w;
     reached[w] = 2;
   }
@@ -1324,7 +1364,7 @@ function simulateTournament(cfg) {
   let prevIds = [];
   R16_TEMPLATE.forEach((pair, idx) => {
     const id = 89 + idx;
-    const w = sampleKnockoutWinner(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
+    const w = decideKnockout(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
     matchWinner[id] = w;
     reached[w] = 3;
     prevIds.push(id);
@@ -1334,7 +1374,7 @@ function simulateTournament(cfg) {
     const nextIds = [];
     for (let i = 0; i < prevIds.length; i += 2) {
       const newId = Math.max(...Object.keys(matchWinner).map(Number)) + 1;
-      const w = sampleKnockoutWinner(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
+      const w = decideKnockout(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
       matchWinner[newId] = w;
       reached[w] = round;
       nextIds.push(newId);
@@ -2130,6 +2170,96 @@ function clearAssessments() {
 }
 function assessmentCount() { return Object.keys(AI_ASSESS).length; }
 
+// ===== js/knockout.js =====
+// 淘汰赛预测模块
+// 根据各组当前排名确定 32 强对阵（小组赛踢完即为真实对阵；未踢完则为按当前积分的临时投影），
+// 逐轮预测每场（含加时/点球），可录入真实淘汰赛结果并向下传导。
+// 与 model.js 联动：decideKnockout 会优先采用这里录入的结果（getKoOutcome）。
+
+const KO_KEY = 'wc2026_ko_results';
+const KO_RESULTS = {}; // 'a|b'(排序后) -> { a, b, ga, gb, winner }
+
+(function loadKo() {
+  try { const raw = localStorage.getItem(KO_KEY); if (raw) Object.assign(KO_RESULTS, JSON.parse(raw)); } catch (e) { /* ignore */ }
+})();
+function saveKo() { try { localStorage.setItem(KO_KEY, JSON.stringify(KO_RESULTS)); } catch (e) { /* ignore */ } }
+function koKey(a, b) { return [a, b].sort().join('|'); }
+
+// 供 model.js 调用：返回某对阵已录入的结果（含点球胜者）
+function getKoOutcome(a, b) { return KO_RESULTS[koKey(a, b)] || null; }
+function setKoResult(a, b, ga, gb, winner) {
+  KO_RESULTS[koKey(a, b)] = { a, b, ga, gb, winner: winner || (ga > gb ? a : gb > ga ? b : a) };
+  saveKo();
+}
+function removeKoResult(a, b) { delete KO_RESULTS[koKey(a, b)]; saveKo(); }
+function clearKoResults() { for (const k of Object.keys(KO_RESULTS)) delete KO_RESULTS[k]; saveKo(); }
+
+// 淘汰赛轮次结构（与 simulateTournament 的推进一致）
+const KO_ROUNDS = {
+  r16: [[74, 77], [73, 75], [76, 78], [79, 80], [83, 84], [81, 82], [86, 88], [85, 87]], // → 89..96
+  qf: [[89, 90], [91, 92], [93, 94], [95, 96]], // → 97..100
+  sf: [[97, 98], [99, 100]],                    // → 101,102
+  fin: [[101, 102]],                            // → 103
+};
+const KO_ROUND_LABEL = { r32: '1/16 决赛', r16: '1/8 决赛', qf: '1/4 决赛', sf: '半决赛', fin: '决赛' };
+
+// 由当前各组排名得出晋级球队与对阵分配
+function koQualifiers() {
+  const winners = {}, runners = {}, thirdsAll = [];
+  let complete = true;
+  for (const g of GROUP_NAMES) {
+    const t = groupStandings(g);
+    if (!t.every((r) => r.P === 3)) complete = false;
+    winners[g] = t[0].code;
+    runners[g] = t[1].code;
+    thirdsAll.push({ ...t[2], group: g, pts: t[2].Pts, gf: t[2].GF, ga: t[2].GA });
+  }
+  thirdsAll.sort((x, y) =>
+    y.pts - x.pts || (y.GD) - (x.GD) || y.gf - x.gf || (x.code < y.code ? -1 : 1));
+  const bestThirds = thirdsAll.slice(0, 8);
+  const thirdAssign = assignThirds(bestThirds); // matchId -> code
+  return { winners, runners, thirdsAll, bestThirds, thirdAssign, complete };
+}
+
+function koResolveSlot(slot, matchId, q) {
+  if (slot.startsWith('3:')) return q.thirdAssign[matchId] || null;
+  const pos = slot[0], g = slot[1];
+  return pos === '1' ? q.winners[g] : q.runners[g];
+}
+
+// 计算整张签表的「当前队伍」与「已定胜者」。
+// teams[id] = [a,b]（未定为 null）；winner[id] = 已录入胜者（未定为 null）
+function koBracketState(q) {
+  const teams = {}, winner = {};
+  for (const m of R32_TEMPLATE) {
+    const a = koResolveSlot(m.home, m.id, q), b = koResolveSlot(m.away, m.id, q);
+    teams[m.id] = [a, b];
+    const o = (a && b) ? getKoOutcome(a, b) : null;
+    winner[m.id] = o ? o.winner : null;
+  }
+  const advance = (defs, baseId) => defs.forEach((pair, i) => {
+    const id = baseId + i;
+    const a = winner[pair[0]] || null, b = winner[pair[1]] || null;
+    teams[id] = [a, b];
+    const o = (a && b) ? getKoOutcome(a, b) : null;
+    winner[id] = o ? o.winner : null;
+  });
+  advance(KO_ROUNDS.r16, 89);
+  advance(KO_ROUNDS.qf, 97);
+  advance(KO_ROUNDS.sf, 101);
+  advance(KO_ROUNDS.fin, 103);
+  return { teams, winner };
+}
+
+// 单场淘汰赛预测（含加时/点球晋级概率）
+function koPredict(a, b, cfg) {
+  if (!a || !b) return null;
+  return predictMatch(TEAMS[a], TEAMS[b], { ...(cfg || {}), model: 'ensemble', useHome: true, dc: true, knockout: true });
+}
+
+// 已录入淘汰赛结果数
+function koResultCount() { return Object.keys(KO_RESULTS).length; }
+
 // ===== js/app.js =====
 // 页面交互逻辑
 const $ = (sel) => document.querySelector(sel);
@@ -2147,6 +2277,7 @@ document.querySelectorAll('.tab').forEach((btn) => {
     // 首次打开时惰性渲染较重的页
     if (tab === 'standings' && !$('#standingsResult').innerHTML.trim()) renderStandings();
     if (tab === 'backtest' && !$('#backtestResult').innerHTML.trim()) renderBacktest();
+    if (tab === 'knockout' && !$('#koResult').innerHTML.trim()) renderKnockout();
   });
 });
 
@@ -3075,6 +3206,99 @@ function renderAI() {
   });
 }
 
+// ---------- 淘汰赛预测 ----------
+function koTieHtml(id, st, cfg) {
+  const [a, b] = st.teams[id];
+  if (!a || !b) {
+    return `<div class="ko-tie tbd"><span class="dim">M${id}：待定（取决于上一轮结果）</span></div>`;
+  }
+  const A = TEAMS[a], B = TEAMS[b];
+  const res = getKoOutcome(a, b);
+  if (res) {
+    const wn = res.winner === a ? A : B;
+    return `<div class="ko-tie done">
+      <span>${A.flag} ${A.zh} <strong>${res.ga} : ${res.gb}</strong> ${B.zh} ${B.flag}${res.ga === res.gb ? '（点球）' : ''}</span>
+      <span class="ko-win">✓ ${wn.flag} ${wn.zh} 晋级</span>
+      <button class="mini-btn ko-undo" data-a="${a}" data-b="${b}">撤销</button>
+    </div>`;
+  }
+  const p = koPredict(a, b, cfg);
+  return `<div class="ko-tie">
+    <div class="ko-line">
+      <span class="ko-team">${A.flag} ${A.zh}</span>
+      <span class="ko-score">${p.best.a} : ${p.best.b}</span>
+      <span class="ko-team">${B.zh} ${B.flag}</span>
+    </div>
+    <div class="ai-meta">晋级概率（含加时/点球）：${A.zh} ${(p.advanceA * 100).toFixed(0)}% · ${B.zh} ${(p.advanceB * 100).toFixed(0)}%</div>
+    <div class="ko-entry">
+      <input class="score-input ko-ga" type="number" min="0" max="20" value="${p.best.a}" style="width:50px">:
+      <input class="score-input ko-gb" type="number" min="0" max="20" value="${p.best.b}" style="width:50px">
+      <select class="ko-winner">
+        <option value="${a}"${p.advanceA >= p.advanceB ? ' selected' : ''}>${A.zh} 晋级</option>
+        <option value="${b}"${p.advanceB > p.advanceA ? ' selected' : ''}>${B.zh} 晋级</option>
+      </select>
+      <button class="mini-btn ko-save" data-a="${a}" data-b="${b}">录入</button>
+    </div>
+  </div>`;
+}
+
+function renderKnockout() {
+  const cfg = { ai: aiApplyOn() };
+  const q = koQualifiers();
+  const st = koBracketState(q);
+  const note = q.complete
+    ? '<span class="up">小组赛已完成 · 下为真实对阵</span>'
+    : '<span class="down">小组赛未全部结束 · 下为按当前积分的临时投影</span>';
+
+  const stats = monteCarlo(5000, { model: 'ensemble', useHome: true, ai: aiApplyOn() });
+  const oddsRows = Object.entries(stats).map(([c, s]) => ({ c, s }))
+    .filter((x) => x.s[6] > 0.0004 || x.s[2] > 0.0004)
+    .sort((a, b) => b.s[6] - a.s[6]).slice(0, 24)
+    .map((x, i) => `<tr>
+      <td>${i + 1}</td><td class="team-cell">${teamLabel(TEAMS[x.c])}</td>
+      <td class="pct">${pct(x.s[2], 0)}</td><td class="pct">${pct(x.s[3], 0)}</td>
+      <td class="pct">${pct(x.s[4], 1)}</td><td class="pct">${pct(x.s[5], 1)}</td>
+      <td class="pct"><strong>${pct(x.s[6], 1)}</strong></td></tr>`).join('');
+
+  const idsByRound = [
+    ['r32', R32_TEMPLATE.map((m) => m.id)],
+    ['r16', [89, 90, 91, 92, 93, 94, 95, 96]],
+    ['qf', [97, 98, 99, 100]],
+    ['sf', [101, 102]],
+    ['fin', [103]],
+  ];
+  const roundHtml = idsByRound.map(([rk, ids]) =>
+    `<div class="card"><div class="section-title">${KO_ROUND_LABEL[rk]}</div>${ids.map((id) => koTieHtml(id, st, cfg)).join('')}</div>`).join('');
+
+  $('#koResult').innerHTML =
+    `<div class="card"><div class="section-title">${note} · 已录入淘汰赛结果 ${koResultCount()} 场${aiApplyOn() ? ' · AI 调整已应用' : ''}</div></div>` +
+    `<div class="card"><div class="section-title">夺冠与晋级概率（蒙特卡洛 5000 次 · 已结合所有已录入赛果）</div>
+      <table class="standings"><tr><th>#</th><th style="text-align:left">球队</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th>夺冠</th></tr>${oddsRows}</table></div>` +
+    roundHtml;
+}
+
+function initKnockoutTab() {
+  $('#koBtn').addEventListener('click', renderKnockout);
+  $('#koClear').addEventListener('click', () => {
+    if (confirm('确认清空全部淘汰赛结果？')) { clearKoResults(); renderKnockout(); refreshAll(); }
+  });
+  $('#koResult').addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.classList.contains('ko-save')) {
+      const tie = t.closest('.ko-tie');
+      const ga = parseInt(tie.querySelector('.ko-ga').value, 10);
+      const gb = parseInt(tie.querySelector('.ko-gb').value, 10);
+      const winner = tie.querySelector('.ko-winner').value;
+      if (Number.isNaN(ga) || Number.isNaN(gb) || ga < 0 || gb < 0) return;
+      setKoResult(t.dataset.a, t.dataset.b, ga, gb, winner);
+      renderKnockout(); refreshAll();
+    } else if (t.classList.contains('ko-undo')) {
+      removeKoResult(t.dataset.a, t.dataset.b);
+      renderKnockout(); refreshAll();
+    }
+  });
+}
+
 // 赛果变化后刷新所有视图
 function refreshAll() {
   renderResultsTab();
@@ -3083,6 +3307,7 @@ function refreshAll() {
   if ($('#betResult').innerHTML.trim()) renderBetting();
   if ($('#standingsResult').innerHTML.trim()) renderStandings();
   if ($('#backtestResult').innerHTML.trim()) renderBacktest();
+  if ($('#koResult').innerHTML.trim()) renderKnockout();
 }
 
 // ---------- 绑定 ----------
@@ -3093,6 +3318,7 @@ initBettingDelegation();
 initBacktestTab();
 initLedgerTab();
 initAITab();
+initKnockoutTab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);

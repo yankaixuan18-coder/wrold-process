@@ -313,3 +313,16 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
 .ai-cmp .box .s { font-size: 1.3rem; font-weight: 800; color: #38bdf8; }
 .ai-cmp .box.adj .s { color: #a78bfa; }
 .ai-tag { font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(167,139,250,0.18); color: #a78bfa; }
+
+/* ===== 淘汰赛预测 ===== */
+.ko-tie { border-bottom: 1px solid #2c4070; padding: 10px 2px; }
+.ko-tie:last-child { border-bottom: none; }
+.ko-tie.tbd { color: #5b6f96; }
+.ko-tie.done { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ko-line { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.ko-team { flex: 1; font-weight: 600; }
+.ko-line .ko-team:first-child { text-align: right; }
+.ko-score { font-size: 1.15rem; font-weight: 800; color: #38bdf8; min-width: 64px; text-align: center; }
+.ko-win { color: #4ade80; font-weight: 700; }
+.ko-entry { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: center; }
+.ko-entry select { width: auto; min-width: 110px; padding: 6px 8px; }

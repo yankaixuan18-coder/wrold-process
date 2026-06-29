@@ -18,6 +18,7 @@
     <button class="tab" data-tab="group">小组赛模拟</button>
     <button class="tab" data-tab="standings">实时积分榜</button>
     <button class="tab" data-tab="tournament">全程夺冠模拟</button>
+    <button class="tab" data-tab="knockout">淘汰赛预测</button>
     <button class="tab" data-tab="betting">投注推荐</button>
     <button class="tab" data-tab="ai">AI 分析</button>
     <button class="tab" data-tab="ledger">投注台账</button>
@@ -111,6 +112,19 @@
       </div>
     </div>
     <div id="mcResult"></div>
+  </section>
+
+  <!-- 淘汰赛预测 -->
+  <section id="tab-knockout" class="panel">
+    <div class="card">
+      <div class="options">
+        <span class="section-title" style="margin:0">按各组排名生成 32 强签表并逐轮预测；可录入真实淘汰赛结果，自动向下一轮传导。</span>
+        <button id="koBtn" class="primary">刷新淘汰赛预测</button>
+        <button id="koClear" class="del-all">清空淘汰赛结果</button>
+      </div>
+      <p class="hint">小组赛未结束时为「按当前积分的临时投影」；录满 72 场小组赛后即为真实对阵。淘汰赛预期进球已收缩（场面更紧），平局走加时 / 点球。开启 AI 调整时同样生效。</p>
+    </div>
+    <div id="koResult"></div>
   </section>
 
   <!-- 投注推荐 -->
@@ -278,7 +292,7 @@
         <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
         <li><strong>Dixon-Coles 修正：</strong>独立泊松会系统性低估 0:0 / 1:1、高估 1:0 / 0:1（攻防博弈导致低比分相关），按经典 Dixon-Coles (1997) τ 系数（ρ = −0.13）校正低比分区域。</li>
         <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
-        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战。</li>
+        <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战；淘汰赛预期进球整体收缩（KO_GOAL_SCALE，场面更紧）。「淘汰赛预测」页按各组排名生成 32 强签表逐轮预测，可录入真实结果自动向下一轮传导，并给出各队夺冠/晋级概率。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
         <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。可在每场录入<strong>真实赔率</strong>让 EV 基于实盘计算。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
         <li><strong>回测校准：</strong>对已结束比赛做<strong>时序回放</strong>（预测每场只用此前赛果，杜绝未来信息泄漏），算出胜平负命中率、Brier 分数、对数损失、比分命中率、总进球 MAE，并与「市场模型」「均匀基准」对照，附校准曲线——这是衡量模型到底准不准、值不值得信的关键。</li>

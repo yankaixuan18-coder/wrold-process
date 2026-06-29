@@ -11,7 +11,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const css = '<style>\n' + read('css/style.css') + '\n  </style>';
 const js = '<script>\n' +
   ['js/data.js', 'js/schedule.js', 'js/results.js', 'js/model.js', 'js/betting.js',
-    'js/backtest.js', 'js/ledger.js', 'js/standings.js', 'js/retriever.js', 'js/ai.js', 'js/app.js']
+    'js/backtest.js', 'js/ledger.js', 'js/standings.js', 'js/retriever.js', 'js/ai.js', 'js/knockout.js', 'js/app.js']
     .map((f) => `// ===== ${f} =====\n` + read(f))
     .join('\n') +
   '\n  </script>';

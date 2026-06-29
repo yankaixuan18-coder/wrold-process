@@ -13,6 +13,7 @@ const FIFA_SCALE = 1000 / 850; // FIFA 积分差 → Elo 当量
 const MARKET_B = 121;          // ln(隐含夺冠概率) → Elo 当量
 const MARKET_TOP = 2190;       // 市场头号热门锚定的 Elo 当量
 const DC_RHO = -0.13;          // Dixon-Coles 低比分相关性参数（负值提升 0:0 / 1:1 概率）
+const KO_GOAL_SCALE = 0.90;    // 淘汰赛进球收缩：球队更谨慎、场面更紧、更易低比分/平局拖加时
 
 const MODEL_INFO = {
   elo: { name: 'Elo 模型', short: 'Elo' },
@@ -91,6 +92,8 @@ function matchLambdas(A, B, cfg = {}) {
     lamA = clamp(lamA * clamp(assess.homeGoalMult || 1, 0.3, 2), 0.05, 4.8);
     lamB = clamp(lamB * clamp(assess.awayGoalMult || 1, 0.3, 2), 0.05, 4.8);
   }
+  // 淘汰赛进球收缩（更谨慎、更紧）
+  if (cfg.knockout) { lamA *= KO_GOAL_SCALE; lamB *= KO_GOAL_SCALE; }
   return [lamA, lamB];
 }
 
@@ -217,7 +220,7 @@ function samplePoisson(lambda) {
 // 比分分布缓存：同一次模拟里相同对阵直接复用累积分布，
 // 抽样时从含 Dixon-Coles 修正的完整比分矩阵中取样
 function matchDist(A, B, cfg) {
-  const key = A.code + '|' + B.code;
+  const key = (cfg.knockout ? 'K|' : 'G|') + A.code + '|' + B.code;
   if (cfg.cache && cfg.cache.has(key)) return cfg.cache.get(key);
   const [lamA, lamB] = matchLambdas(A, B, cfg);
   const m = mixFixScenario(scoreMatrix(lamA, lamB, cfg.dc !== false), aiAssessmentFor(A, B, cfg));
@@ -238,15 +241,25 @@ function sampleScore(A, B, cfg) {
   return [Math.floor(i / (MAX_GOALS + 1)), i % (MAX_GOALS + 1)];
 }
 
-// 淘汰赛单场随机出胜者
+// 淘汰赛单场随机出胜者（含淘汰赛进球收缩；正赛平则按 1/3 强度加时，再平点球）
 function sampleKnockoutWinner(codeA, codeB, cfg) {
   const A = TEAMS[codeA], B = TEAMS[codeB];
-  const [ga, gb] = sampleScore(A, B, cfg);
+  const kcfg = cfg.knockout ? cfg : { ...cfg, knockout: true };
+  const [ga, gb] = sampleScore(A, B, kcfg);
   if (ga !== gb) return ga > gb ? codeA : codeB;
-  const { lamA, lamB } = matchDist(A, B, cfg);
+  const { lamA, lamB } = matchDist(A, B, kcfg);
   const ea = samplePoisson(lamA / 3), eb = samplePoisson(lamB / 3);
   if (ea !== eb) return ea > eb ? codeA : codeB;
   return Math.random() < penaltyWinProb(A, B, cfg) ? codeA : codeB;
+}
+
+// 已录入的真实淘汰赛结果优先（见 knockout.js）；否则随机模拟
+function decideKnockout(codeA, codeB, cfg) {
+  if (typeof getKoOutcome === 'function') {
+    const o = getKoOutcome(codeA, codeB);
+    if (o && o.winner) return o.winner;
+  }
+  return sampleKnockoutWinner(codeA, codeB, cfg);
 }
 
 // 模拟一个小组的 6 场比赛，返回排序后的积分榜
@@ -331,7 +344,7 @@ function simulateTournament(cfg) {
   const matchWinner = {};
   for (const m of R32_TEMPLATE) {
     const a = resolveSlot(m.home, m.id), b = resolveSlot(m.away, m.id);
-    const w = sampleKnockoutWinner(a, b, cfg);
+    const w = decideKnockout(a, b, cfg);
     matchWinner[m.id] = w;
     reached[w] = 2;
   }
@@ -339,7 +352,7 @@ function simulateTournament(cfg) {
   let prevIds = [];
   R16_TEMPLATE.forEach((pair, idx) => {
     const id = 89 + idx;
-    const w = sampleKnockoutWinner(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
+    const w = decideKnockout(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
     matchWinner[id] = w;
     reached[w] = 3;
     prevIds.push(id);
@@ -349,7 +362,7 @@ function simulateTournament(cfg) {
     const nextIds = [];
     for (let i = 0; i < prevIds.length; i += 2) {
       const newId = Math.max(...Object.keys(matchWinner).map(Number)) + 1;
-      const w = sampleKnockoutWinner(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
+      const w = decideKnockout(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
       matchWinner[newId] = w;
       reached[w] = round;
       nextIds.push(newId);

@@ -14,6 +14,7 @@ document.querySelectorAll('.tab').forEach((btn) => {
     // 首次打开时惰性渲染较重的页
     if (tab === 'standings' && !$('#standingsResult').innerHTML.trim()) renderStandings();
     if (tab === 'backtest' && !$('#backtestResult').innerHTML.trim()) renderBacktest();
+    if (tab === 'knockout' && !$('#koResult').innerHTML.trim()) renderKnockout();
   });
 });
 
@@ -942,6 +943,99 @@ function renderAI() {
   });
 }
 
+// ---------- 淘汰赛预测 ----------
+function koTieHtml(id, st, cfg) {
+  const [a, b] = st.teams[id];
+  if (!a || !b) {
+    return `<div class="ko-tie tbd"><span class="dim">M${id}：待定（取决于上一轮结果）</span></div>`;
+  }
+  const A = TEAMS[a], B = TEAMS[b];
+  const res = getKoOutcome(a, b);
+  if (res) {
+    const wn = res.winner === a ? A : B;
+    return `<div class="ko-tie done">
+      <span>${A.flag} ${A.zh} <strong>${res.ga} : ${res.gb}</strong> ${B.zh} ${B.flag}${res.ga === res.gb ? '（点球）' : ''}</span>
+      <span class="ko-win">✓ ${wn.flag} ${wn.zh} 晋级</span>
+      <button class="mini-btn ko-undo" data-a="${a}" data-b="${b}">撤销</button>
+    </div>`;
+  }
+  const p = koPredict(a, b, cfg);
+  return `<div class="ko-tie">
+    <div class="ko-line">
+      <span class="ko-team">${A.flag} ${A.zh}</span>
+      <span class="ko-score">${p.best.a} : ${p.best.b}</span>
+      <span class="ko-team">${B.zh} ${B.flag}</span>
+    </div>
+    <div class="ai-meta">晋级概率（含加时/点球）：${A.zh} ${(p.advanceA * 100).toFixed(0)}% · ${B.zh} ${(p.advanceB * 100).toFixed(0)}%</div>
+    <div class="ko-entry">
+      <input class="score-input ko-ga" type="number" min="0" max="20" value="${p.best.a}" style="width:50px">:
+      <input class="score-input ko-gb" type="number" min="0" max="20" value="${p.best.b}" style="width:50px">
+      <select class="ko-winner">
+        <option value="${a}"${p.advanceA >= p.advanceB ? ' selected' : ''}>${A.zh} 晋级</option>
+        <option value="${b}"${p.advanceB > p.advanceA ? ' selected' : ''}>${B.zh} 晋级</option>
+      </select>
+      <button class="mini-btn ko-save" data-a="${a}" data-b="${b}">录入</button>
+    </div>
+  </div>`;
+}
+
+function renderKnockout() {
+  const cfg = { ai: aiApplyOn() };
+  const q = koQualifiers();
+  const st = koBracketState(q);
+  const note = q.complete
+    ? '<span class="up">小组赛已完成 · 下为真实对阵</span>'
+    : '<span class="down">小组赛未全部结束 · 下为按当前积分的临时投影</span>';
+
+  const stats = monteCarlo(5000, { model: 'ensemble', useHome: true, ai: aiApplyOn() });
+  const oddsRows = Object.entries(stats).map(([c, s]) => ({ c, s }))
+    .filter((x) => x.s[6] > 0.0004 || x.s[2] > 0.0004)
+    .sort((a, b) => b.s[6] - a.s[6]).slice(0, 24)
+    .map((x, i) => `<tr>
+      <td>${i + 1}</td><td class="team-cell">${teamLabel(TEAMS[x.c])}</td>
+      <td class="pct">${pct(x.s[2], 0)}</td><td class="pct">${pct(x.s[3], 0)}</td>
+      <td class="pct">${pct(x.s[4], 1)}</td><td class="pct">${pct(x.s[5], 1)}</td>
+      <td class="pct"><strong>${pct(x.s[6], 1)}</strong></td></tr>`).join('');
+
+  const idsByRound = [
+    ['r32', R32_TEMPLATE.map((m) => m.id)],
+    ['r16', [89, 90, 91, 92, 93, 94, 95, 96]],
+    ['qf', [97, 98, 99, 100]],
+    ['sf', [101, 102]],
+    ['fin', [103]],
+  ];
+  const roundHtml = idsByRound.map(([rk, ids]) =>
+    `<div class="card"><div class="section-title">${KO_ROUND_LABEL[rk]}</div>${ids.map((id) => koTieHtml(id, st, cfg)).join('')}</div>`).join('');
+
+  $('#koResult').innerHTML =
+    `<div class="card"><div class="section-title">${note} · 已录入淘汰赛结果 ${koResultCount()} 场${aiApplyOn() ? ' · AI 调整已应用' : ''}</div></div>` +
+    `<div class="card"><div class="section-title">夺冠与晋级概率（蒙特卡洛 5000 次 · 已结合所有已录入赛果）</div>
+      <table class="standings"><tr><th>#</th><th style="text-align:left">球队</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th>夺冠</th></tr>${oddsRows}</table></div>` +
+    roundHtml;
+}
+
+function initKnockoutTab() {
+  $('#koBtn').addEventListener('click', renderKnockout);
+  $('#koClear').addEventListener('click', () => {
+    if (confirm('确认清空全部淘汰赛结果？')) { clearKoResults(); renderKnockout(); refreshAll(); }
+  });
+  $('#koResult').addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.classList.contains('ko-save')) {
+      const tie = t.closest('.ko-tie');
+      const ga = parseInt(tie.querySelector('.ko-ga').value, 10);
+      const gb = parseInt(tie.querySelector('.ko-gb').value, 10);
+      const winner = tie.querySelector('.ko-winner').value;
+      if (Number.isNaN(ga) || Number.isNaN(gb) || ga < 0 || gb < 0) return;
+      setKoResult(t.dataset.a, t.dataset.b, ga, gb, winner);
+      renderKnockout(); refreshAll();
+    } else if (t.classList.contains('ko-undo')) {
+      removeKoResult(t.dataset.a, t.dataset.b);
+      renderKnockout(); refreshAll();
+    }
+  });
+}
+
 // 赛果变化后刷新所有视图
 function refreshAll() {
   renderResultsTab();
@@ -950,6 +1044,7 @@ function refreshAll() {
   if ($('#betResult').innerHTML.trim()) renderBetting();
   if ($('#standingsResult').innerHTML.trim()) renderStandings();
   if ($('#backtestResult').innerHTML.trim()) renderBacktest();
+  if ($('#koResult').innerHTML.trim()) renderKnockout();
 }
 
 // ---------- 绑定 ----------
@@ -960,6 +1055,7 @@ initBettingDelegation();
 initBacktestTab();
 initLedgerTab();
 initAITab();
+initKnockoutTab();
 recomputeAdjustments();
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
