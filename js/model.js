@@ -283,8 +283,22 @@ function simulateGroup(groupCodes, cfg) {
     y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || Math.random() - 0.5);
 }
 
-// 将 8 支成绩最好的小组第三分配到对阵模板的限定槽位（回溯匹配）
+// 将 8 支成绩最好的小组第三分配到对阵模板的限定槽位。
+// 优先用 FIFA 官方 Annexe C 分配表（按出线 8 组的组合查表，保证与真实签表一致，
+// 例如德国 1E 对阵 D 组第三）；表缺失时退化为回溯匹配。
 function assignThirds(thirds) {
+  if (typeof THIRD_ALLOCATION !== 'undefined' && typeof THIRD_SLOT_MATCH !== 'undefined') {
+    const byGroup = {};
+    for (const t of thirds) byGroup[t.group] = t.code;
+    const key = thirds.map((t) => t.group).sort().join('');
+    const alloc = THIRD_ALLOCATION[key];
+    if (alloc) {
+      const assign = {};
+      for (const slot in THIRD_SLOT_MATCH) assign[THIRD_SLOT_MATCH[slot]] = byGroup[alloc[slot]];
+      return assign; // matchId -> teamCode
+    }
+  }
+  // —— 回退：官方表未命中时的回溯匹配 ——
   const slots = R32_TEMPLATE.filter((m) => m.away.startsWith('3:'))
     .map((m) => ({ id: m.id, allowed: m.away.slice(2) }));
   const assign = {};
