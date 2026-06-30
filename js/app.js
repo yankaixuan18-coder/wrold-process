@@ -987,12 +987,27 @@ function renderKnockout() {
     ? '<span class="up">小组赛已完成 · 下为真实对阵</span>'
     : '<span class="down">小组赛未全部结束 · 下为按当前积分的临时投影</span>';
 
-  const stats = monteCarlo(5000, { model: 'ensemble', useHome: true, ai: aiApplyOn() });
-  const oddsRows = Object.entries(stats).map(([c, s]) => ({ c, s }))
-    .filter((x) => x.s[6] > 0.0004 || x.s[2] > 0.0004)
-    .sort((a, b) => b.s[6] - a.s[6]).slice(0, 24)
-    .map((x, i) => `<tr>
+  // 32 强名单（12 组各前 2 名 = 24，+ 8 个最佳第三 = 32）
+  const qualList = GROUP_NAMES.map((g) =>
+    `<span class="qual-g">${g}组</span> ${TEAMS[q.winners[g]].flag}${TEAMS[q.winners[g]].zh}<span class="dim">①</span> · ${TEAMS[q.runners[g]].flag}${TEAMS[q.runners[g]].zh}<span class="dim">②</span>`).join('　');
+  const thirdList = q.bestThirds.map((t) => `${TEAMS[t.code].flag}${TEAMS[t.code].zh}<span class="dim">(${t.group})</span>`).join('、');
+  const total = Object.keys(q.winners).length + Object.keys(q.runners).length + q.bestThirds.length;
+  const qualCard = `<div class="card">
+    <div class="section-title">进入淘汰赛的 ${total} 支球队（12 组各前 2 名 24 队 + 8 个最佳第三）</div>
+    <div class="qual-list">${qualList}</div>
+    <div class="qual-thirds"><strong>最佳第三（8）：</strong>${thirdList}</div>
+  </div>`;
+
+  // 小组赛已完成 → 固定 32 强签表只模拟淘汰赛（恰好 32 支）；未完成 → 全程模拟（投影）
+  const stats = q.complete
+    ? koMonteCarlo(6000, { ai: aiApplyOn() })
+    : monteCarlo(5000, { model: 'ensemble', useHome: true, ai: aiApplyOn() });
+  const oddsList = Object.entries(stats).map(([c, s]) => ({ c, s }))
+    .filter((x) => x.s[1] > 0.0005)
+    .sort((a, b) => b.s[6] - a.s[6] || b.s[1] - a.s[1]);
+  const oddsRows = oddsList.map((x, i) => `<tr>
       <td>${i + 1}</td><td class="team-cell">${teamLabel(TEAMS[x.c])}</td>
+      <td class="pct">${pct(x.s[1], 0)}</td>
       <td class="pct">${pct(x.s[2], 0)}</td><td class="pct">${pct(x.s[3], 0)}</td>
       <td class="pct">${pct(x.s[4], 1)}</td><td class="pct">${pct(x.s[5], 1)}</td>
       <td class="pct"><strong>${pct(x.s[6], 1)}</strong></td></tr>`).join('');
@@ -1009,8 +1024,9 @@ function renderKnockout() {
 
   $('#koResult').innerHTML =
     `<div class="card"><div class="section-title">${note} · 已录入淘汰赛结果 ${koResultCount()} 场${aiApplyOn() ? ' · AI 调整已应用' : ''}</div></div>` +
-    `<div class="card"><div class="section-title">夺冠与晋级概率（蒙特卡洛 5000 次 · 已结合所有已录入赛果）</div>
-      <table class="standings"><tr><th>#</th><th style="text-align:left">球队</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th>夺冠</th></tr>${oddsRows}</table></div>` +
+    qualCard +
+    `<div class="card"><div class="section-title">夺冠与晋级概率（蒙特卡洛 5000 次 · 已结合所有已录入赛果 · 共 ${oddsList.length} 支在淘汰赛行列）</div>
+      <table class="standings"><tr><th>#</th><th style="text-align:left">球队</th><th>进淘汰赛<br>(32强)</th><th>进16强</th><th>进8强</th><th>进4强</th><th>进决赛</th><th>夺冠</th></tr>${oddsRows}</table></div>` +
     roundHtml;
 }
 

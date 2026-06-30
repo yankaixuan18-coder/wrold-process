@@ -84,5 +84,32 @@ function koPredict(a, b, cfg) {
   return predictMatch(TEAMS[a], TEAMS[b], { ...(cfg || {}), model: 'ensemble', useHome: true, dc: true, knockout: true });
 }
 
+// 仅淘汰赛蒙特卡洛：固定 32 强签表（来自当前排名），只模拟淘汰赛，
+// 并采纳已录入的真实结果。返回 code -> [_, P进淘汰赛, P16, P8, P4, P决赛, P夺冠]
+// （仅当小组赛已完成、签表确定时使用，确保恰好 32 支球队）
+function koMonteCarlo(iters, cfg) {
+  const q = koQualifiers();
+  const c = { ...(cfg || {}), model: 'ensemble', useHome: true, dc: true, cache: new Map() };
+  const r32 = R32_TEMPLATE.map((m) => [koResolveSlot(m.home, m.id, q), koResolveSlot(m.away, m.id, q)]);
+  const all32 = r32.flat().filter(Boolean);
+  const reached = {};
+  for (const code of all32) reached[code] = [0, 0, 0, 0, 0, 0, 0];
+  for (let it = 0; it < iters; it++) {
+    const win = {};
+    R32_TEMPLATE.forEach((m, i) => {
+      const [a, b] = r32[i];
+      reached[a][1]++; reached[b][1]++;            // 两队都已进淘汰赛
+      const w = decideKnockout(a, b, c); win[m.id] = w; reached[w][2]++; // 胜者进 16 强
+    });
+    KO_ROUNDS.r16.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[89 + idx] = w; reached[w][3]++; });
+    KO_ROUNDS.qf.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[97 + idx] = w; reached[w][4]++; });
+    KO_ROUNDS.sf.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[101 + idx] = w; reached[w][5]++; });
+    const fw = decideKnockout(win[101], win[102], c); reached[fw][6]++;
+  }
+  const out = {};
+  for (const code of all32) out[code] = reached[code].map((n) => n / iters);
+  return out; // 恰好 32 支
+}
+
 // 已录入淘汰赛结果数
 function koResultCount() { return Object.keys(KO_RESULTS).length; }
