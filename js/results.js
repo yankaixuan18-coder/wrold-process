@@ -68,6 +68,18 @@ function clearResults() {
   recomputeAdjustments();
 }
 
+// 一键载入完整小组赛参考比分（覆盖当前小组赛赛果；不影响淘汰赛录入）
+function importReferenceResults() {
+  if (typeof GROUP_RESULTS_REF === 'undefined') return 0;
+  RESULTS.length = 0;
+  for (const r of GROUP_RESULTS_REF) {
+    if (TEAMS[r.a] && TEAMS[r.b]) RESULTS.push({ a: r.a, b: r.b, ga: r.ga, gb: r.gb });
+  }
+  saveResults();
+  recomputeAdjustments();
+  return RESULTS.length;
+}
+
 // 单场 Elo 当量更新量（A 视角，B 取相反数）。
 // delta = K × G × (实际得分 - 预期得分)，G 为净胜球放大系数。
 // 预期值用集成实力差（含调用时 ADJ 的累计状态与东道主主场）。

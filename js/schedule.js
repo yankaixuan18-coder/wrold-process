@@ -104,3 +104,25 @@ function dateLabel(iso) {
   const wk = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
   return `${d.getMonth() + 1}月${d.getDate()}日 ${wk}`;
 }
+
+// 完整小组赛参考比分（openfootball 数据集，2026）——一键载入用，可被手动录入覆盖
+const GROUP_RESULTS_REF = [
+  {a:'MEX',b:'RSA',ga:2,gb:0}, {a:'KOR',b:'CZE',ga:2,gb:1}, {a:'CZE',b:'RSA',ga:1,gb:1}, {a:'MEX',b:'KOR',ga:1,gb:0},
+  {a:'CZE',b:'MEX',ga:0,gb:3}, {a:'RSA',b:'KOR',ga:1,gb:0}, {a:'CAN',b:'BIH',ga:1,gb:1}, {a:'QAT',b:'SUI',ga:1,gb:1},
+  {a:'SUI',b:'BIH',ga:4,gb:1}, {a:'CAN',b:'QAT',ga:6,gb:0}, {a:'SUI',b:'CAN',ga:2,gb:1}, {a:'BIH',b:'QAT',ga:3,gb:1},
+  {a:'BRA',b:'MAR',ga:1,gb:1}, {a:'HAI',b:'SCO',ga:0,gb:1}, {a:'SCO',b:'MAR',ga:0,gb:1}, {a:'BRA',b:'HAI',ga:3,gb:0},
+  {a:'SCO',b:'BRA',ga:0,gb:3}, {a:'MAR',b:'HAI',ga:4,gb:2}, {a:'USA',b:'PAR',ga:4,gb:1}, {a:'AUS',b:'TUR',ga:2,gb:0},
+  {a:'USA',b:'AUS',ga:2,gb:0}, {a:'TUR',b:'PAR',ga:0,gb:1}, {a:'TUR',b:'USA',ga:3,gb:2}, {a:'PAR',b:'AUS',ga:0,gb:0},
+  {a:'GER',b:'CUW',ga:7,gb:1}, {a:'CIV',b:'ECU',ga:1,gb:0}, {a:'GER',b:'CIV',ga:2,gb:1}, {a:'ECU',b:'CUW',ga:0,gb:0},
+  {a:'CUW',b:'CIV',ga:0,gb:2}, {a:'ECU',b:'GER',ga:2,gb:1}, {a:'NED',b:'JPN',ga:2,gb:2}, {a:'SWE',b:'TUN',ga:5,gb:1},
+  {a:'NED',b:'SWE',ga:5,gb:1}, {a:'TUN',b:'JPN',ga:0,gb:4}, {a:'JPN',b:'SWE',ga:1,gb:1}, {a:'TUN',b:'NED',ga:1,gb:3},
+  {a:'BEL',b:'EGY',ga:1,gb:1}, {a:'IRN',b:'NZL',ga:2,gb:2}, {a:'BEL',b:'IRN',ga:0,gb:0}, {a:'NZL',b:'EGY',ga:1,gb:3},
+  {a:'EGY',b:'IRN',ga:1,gb:1}, {a:'NZL',b:'BEL',ga:1,gb:5}, {a:'ESP',b:'CPV',ga:0,gb:0}, {a:'KSA',b:'URU',ga:1,gb:1},
+  {a:'ESP',b:'KSA',ga:4,gb:0}, {a:'URU',b:'CPV',ga:2,gb:2}, {a:'CPV',b:'KSA',ga:0,gb:0}, {a:'URU',b:'ESP',ga:0,gb:1},
+  {a:'FRA',b:'SEN',ga:3,gb:1}, {a:'IRQ',b:'NOR',ga:1,gb:4}, {a:'FRA',b:'IRQ',ga:3,gb:0}, {a:'NOR',b:'SEN',ga:3,gb:2},
+  {a:'NOR',b:'FRA',ga:1,gb:4}, {a:'SEN',b:'IRQ',ga:5,gb:0}, {a:'ARG',b:'ALG',ga:3,gb:0}, {a:'AUT',b:'JOR',ga:3,gb:1},
+  {a:'ARG',b:'AUT',ga:2,gb:0}, {a:'JOR',b:'ALG',ga:1,gb:2}, {a:'ALG',b:'AUT',ga:3,gb:3}, {a:'JOR',b:'ARG',ga:1,gb:3},
+  {a:'POR',b:'COD',ga:1,gb:1}, {a:'UZB',b:'COL',ga:1,gb:3}, {a:'POR',b:'UZB',ga:5,gb:0}, {a:'COL',b:'COD',ga:1,gb:0},
+  {a:'COL',b:'POR',ga:0,gb:0}, {a:'COD',b:'UZB',ga:3,gb:1}, {a:'ENG',b:'CRO',ga:4,gb:2}, {a:'GHA',b:'PAN',ga:1,gb:0},
+  {a:'ENG',b:'GHA',ga:0,gb:0}, {a:'PAN',b:'CRO',ga:0,gb:1}, {a:'PAN',b:'ENG',ga:0,gb:2}, {a:'CRO',b:'GHA',ga:2,gb:1},
+];

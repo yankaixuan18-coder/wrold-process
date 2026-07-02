@@ -433,6 +433,14 @@ function initResultsTab() {
     addResult(a, b, ga, gb);
     refreshAll();
   });
+  $('#resLoadRef').addEventListener('click', () => {
+    if (confirm('用完整参考比分覆盖当前所有小组赛赛果？（淘汰赛录入不受影响）')) {
+      const n = importReferenceResults();
+      refreshAll();
+      $('#resList').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      alert('已载入 ' + n + ' 场小组赛参考比分，淘汰赛签表已按官方对阵更新。');
+    }
+  });
 }
 
 // ---------- 投注推荐 ----------
