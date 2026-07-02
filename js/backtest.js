@@ -57,8 +57,8 @@ function runBacktest(modelCfg) {
   const model = btAccum(), market = btAccum(), baseline = btAccum();
   for (const r of chrono) {
     const A = TEAMS[r.a], B = TEAMS[r.b];
-    btRecord(model, predictMatch(A, B, { ...modelCfg, useHome: true, dc: true }), r.ga, r.gb);
-    btRecord(market, predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true }), r.ga, r.gb);
+    btRecord(model, predictMatch(A, B, { ...modelCfg, useHome: true, dc: true, form: false }), r.ga, r.gb);
+    btRecord(market, predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true, form: false }), r.ga, r.gb);
     // 均匀基准：胜平负各 1/3，比分按势均力敌
     btRecord(baseline, { probs: { win: 1 / 3, draw: 1 / 3, loss: 1 / 3 }, best: { a: 1, b: 1 }, lamA: 1.38, lamB: 1.38 }, r.ga, r.gb);
     // 应用真实赛果，供后续场次的动态修正使用

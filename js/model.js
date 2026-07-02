@@ -94,6 +94,12 @@ function matchLambdas(A, B, cfg = {}) {
   }
   // 淘汰赛进球收缩（更谨慎、更紧）
   if (cfg.knockout) { lamA *= KO_GOAL_SCALE; lamB *= KO_GOAL_SCALE; }
+  // 攻防（状态/风格）修正：cfg.form 未指定时取全局开关（见 form.js）
+  const useForm = cfg.form !== undefined ? cfg.form : (typeof formOn === 'function' && formOn());
+  if (useForm && typeof getAtkMult === 'function') {
+    lamA = clamp(lamA * getAtkMult(A.code) * getDefMult(B.code), 0.05, 5);
+    lamB = clamp(lamB * getAtkMult(B.code) * getDefMult(A.code), 0.05, 5);
+  }
   return [lamA, lamB];
 }
 

@@ -82,9 +82,10 @@ function renderMatch() {
 
   // 四个模型分别预测
   const ai = aiApplyOn();
+  const form = $('#formToggle').checked;
   const results = {};
   for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
-    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights, ai });
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights, ai, form });
   }
   const r = results.ensemble; // 主展示用集成结果
   const { probs, top, best } = r;
@@ -1055,6 +1056,7 @@ function initKnockoutTab() {
 
 // 赛果变化后刷新所有视图
 function refreshAll() {
+  recomputeForm();
   renderResultsTab();
   renderDataTable();
   renderMatch();
@@ -1074,6 +1076,9 @@ initLedgerTab();
 initAITab();
 initKnockoutTab();
 recomputeAdjustments();
+recomputeForm();
+$('#formToggle').checked = formOn();
+$('#formToggle').addEventListener('change', () => { setFormOn($('#formToggle').checked); refreshAll(); });
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
 $('#mcBtn').addEventListener('click', renderTournament);

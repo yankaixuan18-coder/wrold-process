@@ -383,6 +383,7 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
         <label class="opt"><input type="radio" name="stage" value="knockout"> 淘汰赛（加时 + 点球）</label>
         <label class="opt"><input type="checkbox" id="homeAdv" checked> 东道主主场加成（美/加/墨）</label>
         <label class="opt"><input type="checkbox" id="dcToggle" checked> Dixon-Coles 低比分修正</label>
+        <label class="opt"><input type="checkbox" id="formToggle"> 攻防修正（据实际进球·全局）</label>
         <button id="predictBtn" class="primary">预测比分</button>
       </div>
       <div class="weights">
@@ -628,6 +629,7 @@ tr.q2 td { background: rgba(56, 189, 248, 0.10); }
         <li><strong>比分生成：</strong>实力差 → 双方预期进球（实力相当时各约 1.38 球）→ 泊松分布 → 每个具体比分（0:0 ~ 8:8）的概率。</li>
         <li><strong>Dixon-Coles 修正：</strong>独立泊松会系统性低估 0:0 / 1:1、高估 1:0 / 0:1（攻防博弈导致低比分相关），按经典 Dixon-Coles (1997) τ 系数（ρ = −0.13）校正低比分区域。</li>
         <li><strong>动态实力更新：</strong>在「实际赛果」页录入真实比分后，按 Elo 更新公式（K=50，净胜球放大系数）对球队实力做贝叶斯式修正，修正叠加到所有模型；已赛场次在模拟中直接使用真实比分。</li>
+        <li><strong>攻防修正（比分系统优化，可开关）：</strong>用每队「实际进/失球」相对「模型按实力预期的进/失球」的偏差，经验贝叶斯收缩（伪计数 K=6）得到进攻/防守系数，区分「进球多/防守稳」的风格——与实力修正正交（实力管强弱，攻防管进球多寡）。样本少时几乎不动、避免过拟合；勾选后作用于所有预测与模拟（庄家盘口与回测不受其影响以保持基准干净）。</li>
         <li><strong>淘汰赛：</strong>90 分钟战平后按 1/3 强度模拟加时，再平则按实力差微调的点球大战；淘汰赛预期进球整体收缩（KO_GOAL_SCALE，场面更紧）。「淘汰赛预测」页按各组排名生成 32 强签表逐轮预测，可录入真实结果自动向下一轮传导，并给出各队夺冠/晋级概率。</li>
         <li><strong>全程模拟：</strong>蒙特卡洛把 104 场比赛随机模拟数千次。小组分组与 32 强对阵模板（M73–M88）为官方真实数据，最佳小组第三按官方限定槽位回溯匹配。</li>
         <li><strong>投注推荐（价值法）：</strong>用「市场赔率模型」按抽水折算出庄家盘口，再用「我方模型」（默认 Elo+FIFA，剔除市场）估真实概率，二者之差即价值 EV = 我方概率 × 赔率 − 1。<strong>稳</strong>取高命中率盘（双重机会、大小球，低赔），<strong>冲</strong>取正价值高赔盘（冷门、正确比分，高风险）。仓位用凯利公式（稳 ¼、冲 ½ 凯利并设上限）。可在每场录入<strong>真实赔率</strong>让 EV 基于实盘计算。串票按各腿独立近似相乘——这会高估真实命中率，越串越难中。</li>
@@ -1131,6 +1133,12 @@ function matchLambdas(A, B, cfg = {}) {
   }
   // 淘汰赛进球收缩（更谨慎、更紧）
   if (cfg.knockout) { lamA *= KO_GOAL_SCALE; lamB *= KO_GOAL_SCALE; }
+  // 攻防（状态/风格）修正：cfg.form 未指定时取全局开关（见 form.js）
+  const useForm = cfg.form !== undefined ? cfg.form : (typeof formOn === 'function' && formOn());
+  if (useForm && typeof getAtkMult === 'function') {
+    lamA = clamp(lamA * getAtkMult(A.code) * getDefMult(B.code), 0.05, 5);
+    lamB = clamp(lamB * getAtkMult(B.code) * getDefMult(A.code), 0.05, 5);
+  }
   return [lamA, lamB];
 }
 
@@ -1426,6 +1434,48 @@ function monteCarlo(iterations, cfg) {
   return out; // code -> [_, P出线, P16强, P8强, P4强, P决赛, P夺冠]
 }
 
+// ===== js/form.js =====
+// 球队攻防（状态/风格）修正层 —— 比分系统优化
+// 思路：小组赛踢完后，每队的「实际进/失球」相对「模型按实力预期的进/失球」的偏差，
+// 反映了强弱之外的进攻/防守风格与状态。用经验贝叶斯收缩（伪计数 K）得到攻防系数，
+// 与实力(ADJ)正交——ADJ 调「谁更强」，攻防层调「进球多寡与攻防倾向」。
+// 收缩很强 + 可开关：样本少时几乎不动，避免过拟合。仅在开启时生效。
+const FORM_KEY = 'wc2026_form_on';
+const FORM_K = 6;              // 收缩伪计数（进球单位）：越大越保守
+const FORM_ATK = {};          // code -> 进攻系数（>1 进球多于预期）
+const FORM_DEF = {};          // code -> 防守系数（<1 失球少于预期）
+
+function formOn() {
+  try { return localStorage.getItem(FORM_KEY) === '1'; } catch (e) { return false; }
+}
+function setFormOn(on) { try { localStorage.setItem(FORM_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ } }
+
+function getAtkMult(code) { return FORM_ATK[code] || 1; }
+function getDefMult(code) { return FORM_DEF[code] || 1; }
+
+// 依据已录入赛果重算攻防系数。预期进球用「关闭 form」的实力模型计算，避免循环。
+function recomputeForm() {
+  for (const k of Object.keys(FORM_ATK)) delete FORM_ATK[k];
+  for (const k of Object.keys(FORM_DEF)) delete FORM_DEF[k];
+  if (typeof RESULTS === 'undefined' || !RESULTS.length) return;
+  const obsF = {}, obsA = {}, expF = {}, expA = {};
+  const bump = (o, c, v) => { o[c] = (o[c] || 0) + v; };
+  for (const r of RESULTS) {
+    const A = TEAMS[r.a], B = TEAMS[r.b];
+    if (!A || !B) continue;
+    // 预期进球：实力模型（含 ADJ、主场），显式关闭 form 与 AI，避免循环
+    const [ea, eb] = matchLambdas(A, B, { model: 'ensemble', useHome: true, form: false, ai: false });
+    bump(obsF, r.a, r.ga); bump(obsA, r.a, r.gb); bump(expF, r.a, ea); bump(expA, r.a, eb);
+    bump(obsF, r.b, r.gb); bump(obsA, r.b, r.ga); bump(expF, r.b, eb); bump(expA, r.b, ea);
+  }
+  for (const c of Object.keys(obsF)) {
+    // 收缩到 1：样本少时接近 1；进球多于预期→>1
+    FORM_ATK[c] = clampForm((obsF[c] + FORM_K) / ((expF[c] || 0) + FORM_K));
+    FORM_DEF[c] = clampForm((obsA[c] + FORM_K) / ((expA[c] || 0) + FORM_K));
+  }
+}
+function clampForm(x) { return Math.min(1.5, Math.max(0.65, x)); }
+
 // ===== js/betting.js =====
 // 投注价值分析与推荐（稳 / 冲）
 // 方法：
@@ -1485,7 +1535,7 @@ function evaluateMatch(codeA, codeB, betModelCfg, realOdds) {
   const our = predictMatch(A, B, { ...betModelCfg, useHome: true, dc: true });
   const om = marketProbs(our.matrix);
   // 庄家盘口：纯市场赔率模型，保持赛前市场（ignoreAdj），不吸收赛果修正
-  const book = predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true });
+  const book = predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true, form: false });
   const bm = marketProbs(book.matrix);
 
   const sel = [];
@@ -1654,8 +1704,8 @@ function runBacktest(modelCfg) {
   const model = btAccum(), market = btAccum(), baseline = btAccum();
   for (const r of chrono) {
     const A = TEAMS[r.a], B = TEAMS[r.b];
-    btRecord(model, predictMatch(A, B, { ...modelCfg, useHome: true, dc: true }), r.ga, r.gb);
-    btRecord(market, predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true }), r.ga, r.gb);
+    btRecord(model, predictMatch(A, B, { ...modelCfg, useHome: true, dc: true, form: false }), r.ga, r.gb);
+    btRecord(market, predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true, form: false }), r.ga, r.gb);
     // 均匀基准：胜平负各 1/3，比分按势均力敌
     btRecord(baseline, { probs: { win: 1 / 3, draw: 1 / 3, loss: 1 / 3 }, best: { a: 1, b: 1 }, lamA: 1.38, lamB: 1.38 }, r.ga, r.gb);
     // 应用真实赛果，供后续场次的动态修正使用
@@ -2390,9 +2440,10 @@ function renderMatch() {
 
   // 四个模型分别预测
   const ai = aiApplyOn();
+  const form = $('#formToggle').checked;
   const results = {};
   for (const m of ['elo', 'fifa', 'market', 'ensemble']) {
-    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights, ai });
+    results[m] = predictMatch(A, B, { model: m, knockout, useHome, dc, weights, ai, form });
   }
   const r = results.ensemble; // 主展示用集成结果
   const { probs, top, best } = r;
@@ -3363,6 +3414,7 @@ function initKnockoutTab() {
 
 // 赛果变化后刷新所有视图
 function refreshAll() {
+  recomputeForm();
   renderResultsTab();
   renderDataTable();
   renderMatch();
@@ -3382,6 +3434,9 @@ initLedgerTab();
 initAITab();
 initKnockoutTab();
 recomputeAdjustments();
+recomputeForm();
+$('#formToggle').checked = formOn();
+$('#formToggle').addEventListener('change', () => { setFormOn($('#formToggle').checked); refreshAll(); });
 $('#predictBtn').addEventListener('click', renderMatch);
 $('#groupBtn').addEventListener('click', renderGroup);
 $('#mcBtn').addEventListener('click', renderTournament);

@@ -56,7 +56,7 @@ function evaluateMatch(codeA, codeB, betModelCfg, realOdds) {
   const our = predictMatch(A, B, { ...betModelCfg, useHome: true, dc: true });
   const om = marketProbs(our.matrix);
   // 庄家盘口：纯市场赔率模型，保持赛前市场（ignoreAdj），不吸收赛果修正
-  const book = predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true });
+  const book = predictMatch(A, B, { model: 'market', useHome: false, dc: true, ignoreAdj: true, form: false });
   const bm = marketProbs(book.matrix);
 
   const sel = [];
