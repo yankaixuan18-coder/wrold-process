@@ -5,4 +5,4 @@ const THIRD_ALLOCATION = {"EFGHIJKL":{"1A":"E","1B":"J","1D":"I","1E":"F","1G":"
 ;
 
 // 会对阵小组第三的 8 个组冠军槽位 → 对应 32 强比赛编号（M74..M88）
-const THIRD_SLOT_MATCH = { "1A": 79, "1B": 85, "1D": 81, "1E": 74, "1G": 82, "1I": 77, "1K": 87, "1L": 88 };
+const THIRD_SLOT_MATCH = { "1A": 79, "1B": 85, "1D": 81, "1E": 74, "1G": 82, "1I": 77, "1K": 87, "1L": 80 };

@@ -121,7 +121,7 @@ for (const t of Object.values(TEAMS)) {
 }
 const GROUP_NAMES = Object.keys(GROUPS).sort();
 
-// 32 强对阵模板（官方赛程 M73-M88）。
+// 32 强对阵模板（官方赛程 M73–M88，反推自 openfootball/FIFA 官方赛程并逐场核对）。
 // '1A' = A 组第一，'2B' = B 组第二，'3:ABCDF' = 来自 A/B/C/D/F 组之一的小组第三
 const R32_TEMPLATE = [
   { id: 73, home: '2A', away: '2B' },
@@ -131,16 +131,26 @@ const R32_TEMPLATE = [
   { id: 77, home: '1I', away: '3:CDFGH' },
   { id: 78, home: '2E', away: '2I' },
   { id: 79, home: '1A', away: '3:CEFHI' },
-  { id: 80, home: '2K', away: '2L' },
+  { id: 80, home: '1L', away: '3:EHIJK' },
   { id: 81, home: '1D', away: '3:BEFIJ' },
   { id: 82, home: '1G', away: '3:AEHIJ' },
-  { id: 83, home: '2D', away: '2G' },
+  { id: 83, home: '2K', away: '2L' },
   { id: 84, home: '1H', away: '2J' },
   { id: 85, home: '1B', away: '3:EFGIJ' },
   { id: 86, home: '1J', away: '2H' },
   { id: 87, home: '1K', away: '3:DEIJL' },
-  { id: 88, home: '1L', away: '3:EHIJK' },
+  { id: 88, home: '2D', away: '2G' },
 ];
 
-// 后续轮次按相邻配对推进（近似官方走位，对整体概率影响很小）
-const R16_TEMPLATE = [[74, 77], [73, 75], [76, 78], [79, 80], [83, 84], [81, 82], [86, 88], [85, 87]];
+// 官方淘汰赛走位（openfootball / FIFA 赛程 M89–M104）：id → 两个上一轮比赛的胜者
+const KO_FEED = [
+  { id: 89, f: [74, 77] }, { id: 90, f: [73, 75] }, { id: 91, f: [76, 78] }, { id: 92, f: [79, 80] },
+  { id: 93, f: [83, 84] }, { id: 94, f: [81, 82] }, { id: 95, f: [86, 88] }, { id: 96, f: [85, 87] },
+  { id: 97, f: [89, 90] }, { id: 98, f: [93, 94] }, { id: 99, f: [91, 92] }, { id: 100, f: [95, 96] },
+  { id: 101, f: [97, 98] }, { id: 102, f: [99, 100] },
+  { id: 104, f: [101, 102] }, // 决赛（M103 为季军赛，见 KO_THIRD_ID）
+];
+const KO_FINAL_ID = 104;
+const KO_THIRD_ID = 103;
+// 胜者晋级到的阶段（reached 编码：3=进8强,4=进4强,5=进决赛,6=夺冠）
+function koWinnerLevel(id) { return id <= 96 ? 3 : id <= 100 ? 4 : id <= 102 ? 5 : 6; }

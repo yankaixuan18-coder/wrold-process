@@ -362,27 +362,11 @@ function simulateTournament(cfg) {
     matchWinner[m.id] = w;
     reached[w] = 2;
   }
-  // 16 强 → 8 强 → 4 强 → 决赛
-  let prevIds = [];
-  R16_TEMPLATE.forEach((pair, idx) => {
-    const id = 89 + idx;
-    const w = decideKnockout(matchWinner[pair[0]], matchWinner[pair[1]], cfg);
-    matchWinner[id] = w;
-    reached[w] = 3;
-    prevIds.push(id);
-  });
-  let round = 4;
-  while (prevIds.length > 1) {
-    const nextIds = [];
-    for (let i = 0; i < prevIds.length; i += 2) {
-      const newId = Math.max(...Object.keys(matchWinner).map(Number)) + 1;
-      const w = decideKnockout(matchWinner[prevIds[i]], matchWinner[prevIds[i + 1]], cfg);
-      matchWinner[newId] = w;
-      reached[w] = round;
-      nextIds.push(newId);
-    }
-    prevIds = nextIds;
-    round++;
+  // 16 强 → 决赛：按官方走位 KO_FEED 推进
+  for (const m of KO_FEED) {
+    const w = decideKnockout(matchWinner[m.f[0]], matchWinner[m.f[1]], cfg);
+    matchWinner[m.id] = w;
+    reached[w] = koWinnerLevel(m.id);
   }
   return reached;
 }

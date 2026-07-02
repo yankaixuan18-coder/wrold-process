@@ -21,14 +21,7 @@ function setKoResult(a, b, ga, gb, winner) {
 function removeKoResult(a, b) { delete KO_RESULTS[koKey(a, b)]; saveKo(); }
 function clearKoResults() { for (const k of Object.keys(KO_RESULTS)) delete KO_RESULTS[k]; saveKo(); }
 
-// 淘汰赛轮次结构（与 simulateTournament 的推进一致）
-const KO_ROUNDS = {
-  r16: [[74, 77], [73, 75], [76, 78], [79, 80], [83, 84], [81, 82], [86, 88], [85, 87]], // → 89..96
-  qf: [[89, 90], [91, 92], [93, 94], [95, 96]], // → 97..100
-  sf: [[97, 98], [99, 100]],                    // → 101,102
-  fin: [[101, 102]],                            // → 103
-};
-const KO_ROUND_LABEL = { r32: '1/16 决赛', r16: '1/8 决赛', qf: '1/4 决赛', sf: '半决赛', fin: '决赛' };
+const KO_ROUND_LABEL = { r32: '1/16 决赛', r16: '1/8 决赛', qf: '1/4 决赛', sf: '半决赛', third: '季军赛', fin: '决赛' };
 
 // 由当前各组排名得出晋级球队与对阵分配
 function koQualifiers() {
@@ -57,24 +50,26 @@ function koResolveSlot(slot, matchId, q) {
 // 计算整张签表的「当前队伍」与「已定胜者」。
 // teams[id] = [a,b]（未定为 null）；winner[id] = 已录入胜者（未定为 null）
 function koBracketState(q) {
-  const teams = {}, winner = {};
+  const teams = {}, winner = {}, loser = {};
   for (const m of R32_TEMPLATE) {
     const a = koResolveSlot(m.home, m.id, q), b = koResolveSlot(m.away, m.id, q);
     teams[m.id] = [a, b];
     const o = (a && b) ? getKoOutcome(a, b) : null;
     winner[m.id] = o ? o.winner : null;
+    loser[m.id] = o ? (o.winner === a ? b : a) : null;
   }
-  const advance = (defs, baseId) => defs.forEach((pair, i) => {
-    const id = baseId + i;
-    const a = winner[pair[0]] || null, b = winner[pair[1]] || null;
-    teams[id] = [a, b];
+  for (const m of KO_FEED) {
+    const a = winner[m.f[0]] || null, b = winner[m.f[1]] || null;
+    teams[m.id] = [a, b];
     const o = (a && b) ? getKoOutcome(a, b) : null;
-    winner[id] = o ? o.winner : null;
-  });
-  advance(KO_ROUNDS.r16, 89);
-  advance(KO_ROUNDS.qf, 97);
-  advance(KO_ROUNDS.sf, 101);
-  advance(KO_ROUNDS.fin, 103);
+    winner[m.id] = o ? o.winner : null;
+    loser[m.id] = o ? (o.winner === a ? b : a) : null;
+  }
+  // 季军赛（M103）：两场半决赛的负者
+  const t3a = loser[101] || null, t3b = loser[102] || null;
+  teams[KO_THIRD_ID] = [t3a, t3b];
+  const o3 = (t3a && t3b) ? getKoOutcome(t3a, t3b) : null;
+  winner[KO_THIRD_ID] = o3 ? o3.winner : null;
   return { teams, winner };
 }
 
@@ -101,10 +96,10 @@ function koMonteCarlo(iters, cfg) {
       reached[a][1]++; reached[b][1]++;            // 两队都已进淘汰赛
       const w = decideKnockout(a, b, c); win[m.id] = w; reached[w][2]++; // 胜者进 16 强
     });
-    KO_ROUNDS.r16.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[89 + idx] = w; reached[w][3]++; });
-    KO_ROUNDS.qf.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[97 + idx] = w; reached[w][4]++; });
-    KO_ROUNDS.sf.forEach((p, idx) => { const w = decideKnockout(win[p[0]], win[p[1]], c); win[101 + idx] = w; reached[w][5]++; });
-    const fw = decideKnockout(win[101], win[102], c); reached[fw][6]++;
+    for (const m of KO_FEED) {
+      const w = decideKnockout(win[m.f[0]], win[m.f[1]], c);
+      win[m.id] = w; reached[w][koWinnerLevel(m.id)]++;
+    }
   }
   const out = {};
   for (const code of all32) out[code] = reached[code].map((n) => n / iters);

@@ -1017,7 +1017,8 @@ function renderKnockout() {
     ['r16', [89, 90, 91, 92, 93, 94, 95, 96]],
     ['qf', [97, 98, 99, 100]],
     ['sf', [101, 102]],
-    ['fin', [103]],
+    ['third', [103]],
+    ['fin', [104]],
   ];
   const roundHtml = idsByRound.map(([rk, ids]) =>
     `<div class="card"><div class="section-title">${KO_ROUND_LABEL[rk]}</div>${ids.map((id) => koTieHtml(id, st, cfg)).join('')}</div>`).join('');
